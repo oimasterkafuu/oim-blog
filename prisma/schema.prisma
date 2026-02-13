@@ -1,0 +1,120 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 用户表
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String
+  password     String
+  avatar       String?
+  bio          String?
+  role         String     @default("admin") // admin, editor, author
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  posts        Post[]
+  comments     Comment[]
+}
+
+// 文章表
+model Post {
+  id           String       @id @default(uuid())
+  title        String
+  slug         String       @unique
+  content      String       @default("")
+  excerpt      String?      // 文章摘要
+  coverImage   String?      // 封面图片
+  status       String       @default("draft") // published, draft, trash
+  allowComment Boolean      @default(true)
+  viewCount    Int          @default(0)
+  authorId     String
+  categoryId   String?
+  author       User         @relation(fields: [authorId], references: [id])
+  category     Category?    @relation(fields: [categoryId], references: [id])
+  tags         PostTag[]
+  comments     Comment[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+// 分类表
+model Category {
+  id           String     @id @default(uuid())
+  name         String
+  slug         String     @unique
+  description  String?
+  order        Int        @default(0)
+  posts        Post[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// 标签表
+model Tag {
+  id           String     @id @default(uuid())
+  name         String
+  slug         String     @unique
+  posts        PostTag[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// 文章-标签关联表
+model PostTag {
+  postId       String
+  tagId        String
+  post         Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag          Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  
+  @@id([postId, tagId])
+}
+
+// 评论表
+model Comment {
+  id           String     @id @default(uuid())
+  content      String
+  authorName   String
+  authorEmail  String
+  authorUrl    String?
+  status       String     @default("pending") // approved, pending, spam, trash
+  postId       String
+  parentId     String?
+  post         Post       @relation(fields: [postId], references: [id])
+  parent       Comment?   @relation("CommentReplies", fields: [parentId], references: [id])
+  replies      Comment[]  @relation("CommentReplies")
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// 独立页面表（如关于页面）
+model Page {
+  id           String     @id @default(uuid())
+  title        String
+  slug         String     @unique
+  content      String     @default("")
+  status       String     @default("published") // published, draft
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// 网站设置表
+model Setting {
+  id           String     @id @default(uuid())
+  key          String     @unique
+  value        String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
