@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { writeFile, unlink } from 'fs/promises'
+import { PATHS } from '@/lib/paths'
+import { writeFile, unlink, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import sharp from 'sharp'
 import path from 'path'
 
 const ICON_SIZE = 512
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 const ICON_FILENAME = 'site-icon.png'
 
 async function ensureUploadsDir() {
-  if (!existsSync(UPLOADS_DIR)) {
-    const { mkdir } = await import('fs/promises')
-    await mkdir(UPLOADS_DIR, { recursive: true })
+  if (!existsSync(PATHS.uploadsDir)) {
+    await mkdir(PATHS.uploadsDir, { recursive: true })
   }
 }
 
@@ -63,7 +62,7 @@ export async function POST(request: NextRequest) {
     const processedBuffer = await processIconToCircle(buffer)
 
     await ensureUploadsDir()
-    const iconPath = path.join(UPLOADS_DIR, ICON_FILENAME)
+    const iconPath = path.join(PATHS.uploadsDir, ICON_FILENAME)
     await writeFile(iconPath, processedBuffer)
 
     const iconUrl = `/api/files/${ICON_FILENAME}`
@@ -88,7 +87,7 @@ export async function DELETE() {
       return NextResponse.json({ error: '请先登录' }, { status: 401 })
     }
 
-    const iconPath = path.join(UPLOADS_DIR, ICON_FILENAME)
+    const iconPath = path.join(PATHS.uploadsDir, ICON_FILENAME)
     if (existsSync(iconPath)) {
       await unlink(iconPath)
     }
