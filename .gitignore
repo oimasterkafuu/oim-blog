@@ -107,3 +107,12 @@ prompt
 
 # Skills directory
 /skills/
+
+# Debug images
+*-test.jpg
+*-test.png
+*-test.jpeg
+
+# Misc temp files
+--port
+3001
