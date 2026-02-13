@@ -4,6 +4,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs/promises'
 import path from 'path'
+import { PATHS } from '@/lib/paths'
 
 const execAsync = promisify(exec)
 
@@ -15,7 +16,7 @@ export async function GET() {
     }
 
     // SQLite 数据库文件路径
-    const dbPath = path.join(process.cwd(), 'db', 'custom.db')
+    const dbPath = PATHS.dbFile
     
     // 读取数据库文件
     const dbBuffer = await fs.readFile(dbPath)
