@@ -255,7 +255,6 @@ function PageEditor({ editId, onBack }: { editId?: string; onBack: () => void })
           <Textarea
             value={formData.content}
             onChange={e => setFormData({ ...formData, content: e.target.value })}
-            placeholder="# 标题&#10;&#10;页面内容..."
             className="editor-textarea font-mono"
           />
         </div>

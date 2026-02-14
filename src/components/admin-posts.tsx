@@ -511,7 +511,6 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
                 <Textarea
                   value={formData.content}
                   onChange={e => setFormData({ ...formData, content: e.target.value })}
-                  placeholder="# 标题&#10;&#10;文章内容..."
                   className="editor-textarea font-mono min-h-[400px]"
                 />
               </TabsContent>
@@ -520,7 +519,7 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
                   {formData.content ? (
                     <MarkdownRenderer content={formData.content} />
                   ) : (
-                    <p className="text-muted-foreground text-center">暂无内容</p>
+                    <p className="text-muted-foreground">暂无内容</p>
                   )}
                 </div>
               </TabsContent>
@@ -537,7 +536,6 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
                   value={formData.content}
                   onChange={e => setFormData({ ...formData, content: e.target.value })}
                   onScroll={handleEditorScroll}
-                  placeholder="# 标题&#10;&#10;文章内容..."
                   className="editor-textarea font-mono !h-[600px] resize-none overflow-auto field-sizing-fixed"
                 />
               </div>
@@ -554,7 +552,7 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
                   {formData.content ? (
                     <MarkdownRenderer content={formData.content} />
                   ) : (
-                    <p className="text-muted-foreground text-center">暂无内容</p>
+                    <p className="text-muted-foreground">暂无内容</p>
                   )}
                 </div>
               </div>
