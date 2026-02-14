@@ -219,7 +219,7 @@ export function AdminComments() {
                           </div>
                         )}
                         {/* 评论内容 */}
-                        <p className="truncate">{comment.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{comment.content}</p>
                       </TableCell>
                       <TableCell>
                         <a
