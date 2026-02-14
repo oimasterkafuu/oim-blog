@@ -27,10 +27,18 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const hasJwtSecretChange = 'jwt_secret' in data
 
-    // 如果修改了 jwt_secret，先保存当前用户信息
-    const currentUser = hasJwtSecretChange ? session : null
+    // 检查 jwt_secret 是否真的改变了
+    let jwtSecretChanged = false
+    if ('jwt_secret' in data) {
+      const currentSetting = await db.setting.findUnique({
+        where: { key: 'jwt_secret' }
+      })
+      const currentValue = currentSetting?.value || ''
+      const newValue = String(data.jwt_secret || '')
+      // 只有当值真正改变时才标记为 changed
+      jwtSecretChanged = currentValue !== newValue
+    }
 
     for (const [key, value] of Object.entries(data)) {
       await db.setting.upsert({
@@ -40,30 +48,30 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 如果修改了 jwt_secret，为当前用户重新签发 session（不需要验证旧 token）
-    if (hasJwtSecretChange && currentUser) {
+    // 只有当 jwt_secret 真正改变时才重新签发 session
+    if (jwtSecretChanged && session) {
       try {
         const { createToken } = await import('@/lib/auth')
-        const newToken = await createToken(currentUser)
-        
-        const response = NextResponse.json({ 
-          success: true, 
+        const newToken = await createToken(session)
+
+        const response = NextResponse.json({
+          success: true,
           sessionRotated: true,
           message: '设置已更新，Session 已重新签发'
         })
-        
+
         response.cookies.set('session', newToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
           maxAge: 60 * 60 * 24 * 7
         })
-        
+
         return response
       } catch (error) {
         console.error('Rotate session error:', error)
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           sessionRotated: false,
           message: '设置已更新，但 Session 重新签发失败'
         })

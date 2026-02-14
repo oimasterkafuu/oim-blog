@@ -108,13 +108,10 @@ export function AdminSettings() {
       const data = await res.json()
 
       if (data.success) {
-        if (data.sessionRotated) {
-          toast.success(data.message || '设置已保存，Session 已重新签发')
-        } else {
-          toast.success('设置已保存')
-        }
+        // 优先显示后端返回的 message，如果没有则显示默认消息
+        toast.success(data.message || '设置已保存')
       } else {
-        toast.error('保存失败')
+        toast.error(data.error || '保存失败')
       }
     } catch {
       toast.error('保存失败')
