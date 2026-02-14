@@ -909,16 +909,14 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
                             </>
                           ) : (
                             <>
-                              {post.status === 'published' && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => window.open(`/post/${post.slug}`, '_blank')}
-                                  title="查看"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(`/post/${post.slug}`, '_blank')}
+                                title="查看"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"

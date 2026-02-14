@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Upload, Trash2, Copy, File, FileText, Film, Music, RefreshCw } from 'lucide-react'
+import { Upload, Trash2, Copy, File, FileText, Film, Music, RefreshCw, Eye } from 'lucide-react'
 import { ImageIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
@@ -198,6 +198,7 @@ export function AdminFiles() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleCopyUrl(file.url)}
+                      title="复制链接"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -205,16 +206,16 @@ export function AdminFiles() {
                       href={file.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex"
                     >
-                      <Button variant="outline" size="sm">
-                        查看
+                      <Button variant="outline" size="sm" title="查看">
+                        <Eye className="h-4 w-4" />
                       </Button>
                     </a>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(file.filename)}
+                      title="删除"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
