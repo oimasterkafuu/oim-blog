@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { exec } from 'child_process'
-import { promisify } from 'util'
+import { writeFileSync, existsSync, unlinkSync } from 'fs'
 import { PATHS } from '@/lib/paths'
+import { join } from 'path'
 
-const execAsync = promisify(exec)
+const UPDATE_SCRIPT_PATH = join(PATHS.projectRoot, 'update.sh')
+const UPDATE_LOG_PATH = join(PATHS.projectRoot, 'update.log')
+const UPDATE_FLAG_PATH = join(PATHS.projectRoot, '.updating')
 
 interface UpdateProgress {
   step: string
@@ -68,12 +70,15 @@ export async function POST(request: Request) {
       { step: 'restart', status: 'pending', message: '重启服务' }
     ]
 
-    // 异步执行更新
-    performUpdate().catch(console.error)
+    // 创建更新脚本并执行
+    createUpdateScript()
+    
+    // 标记正在更新
+    writeFileSync(UPDATE_FLAG_PATH, new Date().toISOString())
 
     return NextResponse.json({ 
       success: true, 
-      message: '更新已开始',
+      message: '更新已开始，程序即将重启',
       isUpdating: true,
       progress: updateProgress 
     })
@@ -84,144 +89,141 @@ export async function POST(request: Request) {
   }
 }
 
-async function performUpdate() {
+function createUpdateScript() {
   const projectRoot = PATHS.projectRoot
+  
+  const script = `#!/bin/bash
+
+# 自动更新脚本
+# 此脚本在主程序退出后执行，避免环境冲突
+
+set -e
+
+PROJECT_ROOT="${projectRoot}"
+LOG_FILE="${UPDATE_LOG_PATH}"
+FLAG_FILE="${UPDATE_FLAG_PATH}"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+cleanup() {
+    rm -f "$FLAG_FILE"
+}
+
+trap cleanup EXIT
+
+log "========================================="
+log "开始自动更新流程"
+log "========================================="
+
+cd "$PROJECT_ROOT"
+
+# 步骤 1: 获取最新代码
+log "步骤 1: 获取最新代码..."
+
+git fetch origin main 2>&1 | tee -a "$LOG_FILE"
+
+LOCAL_COMMIT=$(git rev-parse HEAD)
+REMOTE_COMMIT=$(git rev-parse origin/main)
+
+if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
+    log "已是最新版本，无需更新"
+    log "重启服务..."
+    bun start >> "$LOG_FILE" 2>&1 &
+    exit 0
+fi
+
+log "发现新版本，开始更新..."
+log "本地: $LOCAL_COMMIT"
+log "远程: $REMOTE_COMMIT"
+
+git reset --hard origin/main 2>&1 | tee -a "$LOG_FILE"
+
+log "代码更新完成"
+
+# 步骤 2: 安装依赖和构建
+log "步骤 2: 安装依赖..."
+
+bun install 2>&1 | tee -a "$LOG_FILE"
+
+log "步骤 3: 清理旧构建..."
+
+rm -rf .next node_modules/.cache node_modules/.prisma node_modules/@prisma/client
+
+log "步骤 4: 重新安装 Prisma 客户端..."
+
+bun add @prisma/client 2>&1 | tee -a "$LOG_FILE"
+
+log "步骤 5: 生成 Prisma 客户端..."
+
+bun run db:generate 2>&1 | tee -a "$LOG_FILE"
+
+log "步骤 6: 构建项目 (Turbopack)..."
+
+if bun run build 2>&1 | tee -a "$LOG_FILE"; then
+    log "构建成功 (Turbopack)"
+else
+    log "Turbopack 构建失败，尝试 Webpack..."
+    rm -rf .next
+    if bunx next build --webpack 2>&1 | tee -a "$LOG_FILE"; then
+        log "构建成功 (Webpack)"
+    else
+        log "错误: 构建失败，请检查日志"
+        log "========================================="
+        exit 1
+    fi
+fi
+
+# 步骤 7: 数据库迁移
+log "步骤 7: 数据库迁移..."
+
+if [ -d "prisma/migrations" ]; then
+    bunx prisma migrate deploy 2>&1 | tee -a "$LOG_FILE" || log "警告: 数据库迁移可能失败"
+fi
+
+log "步骤 8: 重启服务..."
+
+# 确保旧进程已停止
+pkill -f "node.*server.js" 2>/dev/null || true
+pkill -f "bun.*server.js" 2>/dev/null || true
+
+sleep 2
+
+# 启动新进程
+log "启动服务..."
+bun start >> "$LOG_FILE" 2>&1 &
+
+log "========================================="
+log "更新完成！"
+log "========================================="
+`
 
   try {
-    // 步骤 1: git fetch
-    setProgress('fetch', 'running', '正在获取最新代码...')
-    
-    try {
-      await execAsync('git fetch origin main', { cwd: projectRoot })
-      
-      // 检查是否有更新
-      const { stdout: localCommit } = await execAsync('git rev-parse HEAD', { cwd: projectRoot })
-      const { stdout: remoteCommit } = await execAsync('git rev-parse origin/main', { cwd: projectRoot })
-      
-      if (localCommit.trim() === remoteCommit.trim()) {
-        setProgress('fetch', 'success', '已是最新版本，无需更新')
-        setProgress('build', 'success', '跳过构建')
-        setProgress('restart', 'success', '无需重启')
-        isUpdating = false
-        return
-      }
-
-      // 有更新，执行 git reset
-      await execAsync('git reset --hard origin/main', { cwd: projectRoot })
-      setProgress('fetch', 'success', '代码更新成功')
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      setProgress('fetch', 'error', `获取代码失败: ${errorMessage}`)
-      isUpdating = false
-      return
+    // 如果已存在旧的更新脚本，先删除
+    if (existsSync(UPDATE_SCRIPT_PATH)) {
+      unlinkSync(UPDATE_SCRIPT_PATH)
     }
-
-    // 步骤 2: 构建项目
-    setProgress('build', 'running', '正在构建项目...')
     
-    try {
-      // 安装依赖
-      await execAsync('bun install', { cwd: projectRoot, timeout: 120000 })
-      
-      // 清理构建缓存，这可以解决 Turbopack 缓存导致的构建错误
-      // 包括 "generate is not a function" 等问题
-      await execAsync('rm -rf .next node_modules/.cache node_modules/.prisma node_modules/@prisma/client', { cwd: projectRoot })
-      
-      // 重新安装 Prisma 客户端以确保最新版本
-      await execAsync('bun add @prisma/client', { cwd: projectRoot, timeout: 60000 })
-      
-      // 生成 Prisma 客户端
-      const { stdout: generateStdout, stderr: generateStderr } = await execAsync('bun run db:generate', { cwd: projectRoot })
-      console.log('Prisma generate output:', generateStdout)
-      if (generateStderr) console.error('Prisma generate stderr:', generateStderr)
-      
-      // 构建项目 - 首先尝试 Turbopack（默认）
-      let buildSuccess = false
-      let buildError: string | null = null
-      
-      try {
-        const { stdout, stderr } = await execAsync('bun run build', { 
-          cwd: projectRoot, 
-          timeout: 300000,
-          env: { ...process.env, NODE_ENV: 'production' }
-        })
-        console.log('Build (Turbopack) stdout:', stdout)
-        
-        if (stderr && (stderr.includes('Failed to compile') || stderr.includes('TypeError') || stderr.includes('error:'))) {
-          throw new Error(stderr)
-        }
-        buildSuccess = true
-      } catch (turbopackError) {
-        // Turbopack 失败，清理并回退到 webpack
-        console.log('Turbopack build failed, falling back to webpack:', turbopackError)
-        buildError = turbopackError instanceof Error ? turbopackError.message : String(turbopackError)
-        
-        // 清理失败的构建产物
-        await execAsync('rm -rf .next', { cwd: projectRoot })
-        
-        // 使用 webpack 重新构建
-        setProgress('build', 'running', 'Turbopack 失败，使用 Webpack 重试...')
-        
-        const { stdout: webpackStdout, stderr: webpackStderr } = await execAsync('bunx next build --webpack', { 
-          cwd: projectRoot, 
-          timeout: 300000,
-          env: { ...process.env, NODE_ENV: 'production' }
-        })
-        console.log('Build (Webpack) stdout:', webpackStdout)
-        
-        if (webpackStderr && (webpackStderr.includes('Failed to compile') || webpackStderr.includes('error:'))) {
-          throw new Error(webpackStderr)
-        }
-        buildSuccess = true
-        buildError = null
-      }
-      
-      if (!buildSuccess && buildError) {
-        throw new Error(buildError)
-      }
-      
-      setProgress('build', 'success', '构建完成')
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('Build error details:', errorMessage)
-      setProgress('build', 'error', `构建失败: ${errorMessage}`)
-      isUpdating = false
-      return
-    }
-
-    // 步骤 3: 重启服务
-    setProgress('restart', 'running', '正在准备重启服务...')
+    writeFileSync(UPDATE_SCRIPT_PATH, script, { mode: 0o755 })
     
-    // 标记需要重启
-    setProgress('restart', 'success', '构建完成，即将重启服务...')
+    // 使用 nohup 在后台执行脚本，立即返回
+    const { spawn } = require('child_process')
+    const child = spawn('nohup', [UPDATE_SCRIPT_PATH], {
+      detached: true,
+      stdio: 'ignore',
+      cwd: PATHS.projectRoot
+    })
+    child.unref()
     
-    // 延迟一段时间让客户端获取到最终状态
+    // 延迟退出主程序，确保脚本已启动
     setTimeout(() => {
-      // 在 standalone 模式下，需要使用 PM2 或其他进程管理器来重启
-      // 这里我们创建一个重启标记文件，由外部脚本或进程管理器检测
-      const restartScript = `
-#!/bin/bash
-sleep 2
-cd "${projectRoot}"
-pkill -f "node.*server.js" || true
-pkill -f "bun.*server.js" || true
-sleep 1
-bun start &
-`
-      
-      // 执行重启脚本
-      exec(restartScript, (error) => {
-        if (error) {
-          console.error('Restart error:', error)
-        }
-      })
-      
-      isUpdating = false
-    }, 3000)
-
+      process.exit(0)
+    }, 1000)
+    
   } catch (error) {
-    console.error('Update process error:', error)
-    isUpdating = false
+    console.error('Failed to create or execute update script:', error)
+    throw error
   }
 }
 
