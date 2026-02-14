@@ -26,7 +26,11 @@ export function AdminFiles() {
     try {
       const res = await fetch('/api/upload')
       const data = await res.json()
-      setFiles(data.files || [])
+      // 过滤掉 site-icon.png，该文件在系统设置中管理
+      const filteredFiles = (data.files || []).filter(
+        (f: FileInfo) => f.filename !== 'site-icon.png'
+      )
+      setFiles(filteredFiles)
     } catch (error) {
       console.error(error)
     } finally {

@@ -74,6 +74,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid filename' }, { status: 400 })
     }
 
+    // 禁止删除 site-icon.png，该文件只能通过系统设置删除
+    if (filename === 'site-icon.png') {
+      return NextResponse.json({ error: '该文件受保护，请通过系统设置删除' }, { status: 403 })
+    }
+
     const filepath = path.join(UPLOADS_DIR, filename)
 
     if (!existsSync(filepath)) {

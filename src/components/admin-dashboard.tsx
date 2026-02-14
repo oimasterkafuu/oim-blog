@@ -40,10 +40,10 @@ export function AdminDashboard() {
   }, [])
 
   const statCards = [
-    { title: '文章总数', value: stats.posts, subValue: `${stats.publishedPosts} 已发布`, icon: FileText, color: 'text-blue-500' },
-    { title: '分类数量', value: stats.categories, icon: FolderOpen, color: 'text-green-500' },
-    { title: '标签数量', value: stats.tags, icon: Tag, color: 'text-purple-500' },
-    { title: '评论总数', value: stats.comments, subValue: `${stats.pendingComments} 待审核`, icon: MessageCircle, color: 'text-orange-500' },
+    { title: '文章总数', value: stats.posts, subValue: `${stats.publishedPosts} 已发布`, icon: FileText, color: 'text-blue-500', href: '/admin/posts' },
+    { title: '分类数量', value: stats.categories, icon: FolderOpen, color: 'text-green-500', href: '/admin/categories' },
+    { title: '标签数量', value: stats.tags, icon: Tag, color: 'text-purple-500', href: '/admin/tags' },
+    { title: '评论总数', value: stats.comments, subValue: `${stats.pendingComments} 待审核`, icon: MessageCircle, color: 'text-orange-500', href: '/admin/comments' },
     { title: '总浏览量', value: stats.views, icon: Eye, color: 'text-pink-500' }
   ]
 
@@ -70,22 +70,36 @@ export function AdminDashboard() {
       
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {statCards.map((stat, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              {stat.subValue && (
-                <p className="text-xs text-muted-foreground">{stat.subValue}</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+        {statCards.map((stat, i) => {
+          const content = (
+            <>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                {stat.subValue && (
+                  <p className="text-xs text-muted-foreground">{stat.subValue}</p>
+                )}
+              </CardContent>
+            </>
+          )
+          
+          return stat.href ? (
+            <a key={i} href={stat.href} className="block">
+              <Card className="cursor-pointer transition-colors hover:bg-muted/50 h-full">
+                {content}
+              </Card>
+            </a>
+          ) : (
+            <Card key={i}>
+              {content}
+            </Card>
+          )
+        })}
       </div>
 
       {/* Quick Actions */}
