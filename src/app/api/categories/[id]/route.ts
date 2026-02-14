@@ -86,12 +86,11 @@ export async function DELETE(
 
     const { id } = await params
 
-    const postCount = await db.post.count({ where: { categoryId: id } })
-    if (postCount > 0) {
-      return NextResponse.json({ error: '该分类下还有文章，无法删除' }, { status: 400 })
-    }
-
-    await db.category.delete({ where: { id } })
+    // 将该分类下的文章的 categoryId 设为 null，然后删除分类
+    await db.$transaction([
+      db.post.updateMany({ where: { categoryId: id }, data: { categoryId: null } }),
+      db.category.delete({ where: { id } })
+    ])
 
     return NextResponse.json({ success: true })
   } catch (error) {
