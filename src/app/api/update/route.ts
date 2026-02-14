@@ -97,8 +97,6 @@ function createUpdateScript() {
 # 自动更新脚本
 # 此脚本在主程序退出后执行，避免环境冲突
 
-set -e
-
 PROJECT_ROOT="${projectRoot}"
 LOG_FILE="${UPDATE_LOG_PATH}"
 FLAG_FILE="${UPDATE_FLAG_PATH}"
@@ -119,7 +117,7 @@ log "========================================="
 
 cd "$PROJECT_ROOT"
 
-# 步骤 1: 获取最新代码
+# 步骤 1: 获取最新代码并强制重置
 log "步骤 1: 获取最新代码..."
 
 git fetch origin main 2>&1 | tee -a "$LOG_FILE"
@@ -127,38 +125,35 @@ git fetch origin main 2>&1 | tee -a "$LOG_FILE"
 LOCAL_COMMIT=$(git rev-parse HEAD)
 REMOTE_COMMIT=$(git rev-parse origin/main)
 
-if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
-    log "已是最新版本，无需更新"
-    log "重启服务..."
-    bun start >> "$LOG_FILE" 2>&1 &
-    exit 0
-fi
-
-log "发现新版本，开始更新..."
 log "本地: $LOCAL_COMMIT"
 log "远程: $REMOTE_COMMIT"
 
+# 无论是否最新，都强制重置到远程版本
 git reset --hard origin/main 2>&1 | tee -a "$LOG_FILE"
 
-log "代码更新完成"
+log "代码已同步到最新版本"
 
-# 步骤 2: 安装依赖和构建
+# 步骤 2: 安装依赖
 log "步骤 2: 安装依赖..."
 
 bun install 2>&1 | tee -a "$LOG_FILE"
 
+# 步骤 3: 清理旧构建
 log "步骤 3: 清理旧构建..."
 
 rm -rf .next node_modules/.cache node_modules/.prisma node_modules/@prisma/client
 
+# 步骤 4: 重新安装 Prisma 客户端
 log "步骤 4: 重新安装 Prisma 客户端..."
 
 bun add @prisma/client 2>&1 | tee -a "$LOG_FILE"
 
+# 步骤 5: 生成 Prisma 客户端
 log "步骤 5: 生成 Prisma 客户端..."
 
 bun run db:generate 2>&1 | tee -a "$LOG_FILE"
 
+# 步骤 6: 构建项目
 log "步骤 6: 构建项目..."
 
 if bun run build 2>&1 | tee -a "$LOG_FILE"; then
@@ -176,13 +171,24 @@ if [ -d "prisma/migrations" ]; then
     bunx prisma migrate deploy 2>&1 | tee -a "$LOG_FILE" || log "警告: 数据库迁移可能失败"
 fi
 
+# 步骤 8: 重启服务
 log "步骤 8: 重启服务..."
 
-# 确保旧进程已停止
+# 强制杀死所有占用端口 3000 的进程
+log "释放端口 3000..."
+fuser -k 3000/tcp 2>/dev/null || true
 pkill -f "node.*server.js" 2>/dev/null || true
 pkill -f "bun.*server.js" 2>/dev/null || true
 
-sleep 2
+# 等待端口完全释放
+sleep 3
+
+# 再次检查端口是否已释放
+if lsof -i:3000 >/dev/null 2>&1; then
+    log "警告: 端口 3000 仍被占用，强制终止..."
+    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+    sleep 2
+fi
 
 # 启动新进程
 log "启动服务..."
