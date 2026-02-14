@@ -97,6 +97,9 @@ function createUpdateScript() {
 # 自动更新脚本
 # 此脚本在主程序退出后执行，避免环境冲突
 
+# 启用 pipefail 以正确检测管道命令的失败
+set -o pipefail
+
 PROJECT_ROOT="${projectRoot}"
 LOG_FILE="${UPDATE_LOG_PATH}"
 FLAG_FILE="${UPDATE_FLAG_PATH}"
