@@ -2,9 +2,23 @@ import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-at-least-32-characters-long'
-)
+// 生成随机密钥
+function generateRandomSecret(): Uint8Array {
+  const randomBytes = new Uint8Array(32)
+  crypto.getRandomValues(randomBytes)
+  return randomBytes
+}
+
+// 使用 globalThis 存储密钥，确保在开发模式下热重载时不会重新生成
+const globalForSecret = globalThis as unknown as {
+  jwtSecret: Uint8Array | undefined
+}
+
+const SECRET_KEY = globalForSecret.jwtSecret ?? generateRandomSecret()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForSecret.jwtSecret = SECRET_KEY
+}
 
 export interface SessionUser {
   id: string
