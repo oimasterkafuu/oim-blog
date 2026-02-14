@@ -340,7 +340,7 @@ export function AdminComments() {
             <AlertDialogAction 
               onClick={handleDelete} 
               disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90"
             >
               {deleting ? '删除中...' : '确认删除'}
             </AlertDialogAction>
