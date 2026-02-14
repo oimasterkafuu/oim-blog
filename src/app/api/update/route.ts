@@ -159,20 +159,14 @@ log "步骤 5: 生成 Prisma 客户端..."
 
 bun run db:generate 2>&1 | tee -a "$LOG_FILE"
 
-log "步骤 6: 构建项目 (Turbopack)..."
+log "步骤 6: 构建项目..."
 
 if bun run build 2>&1 | tee -a "$LOG_FILE"; then
-    log "构建成功 (Turbopack)"
+    log "构建成功"
 else
-    log "Turbopack 构建失败，尝试 Webpack..."
-    rm -rf .next
-    if bunx next build --webpack 2>&1 | tee -a "$LOG_FILE"; then
-        log "构建成功 (Webpack)"
-    else
-        log "错误: 构建失败，请检查日志"
-        log "========================================="
-        exit 1
-    fi
+    log "错误: 构建失败，请检查日志"
+    log "========================================="
+    exit 1
 fi
 
 # 步骤 7: 数据库迁移
