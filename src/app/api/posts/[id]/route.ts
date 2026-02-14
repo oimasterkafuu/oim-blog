@@ -164,7 +164,12 @@ export async function DELETE(
     }
 
     if (permanent) {
-      await db.post.delete({ where: { id } })
+      // 先删除关联的 PostTag 和 Comment 记录，避免外键约束错误
+      await db.$transaction([
+        db.postTag.deleteMany({ where: { postId: id } }),
+        db.comment.deleteMany({ where: { postId: id } }),
+        db.post.delete({ where: { id } })
+      ])
     } else {
       await db.post.update({
         where: { id },
