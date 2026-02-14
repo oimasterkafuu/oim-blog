@@ -37,15 +37,47 @@ function questionHidden(prompt: string): Promise<string> {
     }
     
     let password = ''
-    process.stdin.resume()
-    process.stdin.once('data', (chunk) => {
-      password = chunk.toString().trim()
-      if (process.stdin.isTTY) {
-        process.stdin.setRawMode(false)
+    
+    const onData = (char: Buffer) => {
+      const c = char.toString('utf8')
+      
+      // 处理特殊按键
+      switch (c) {
+        case '\n':
+        case '\r':
+        case '\u0004': // Ctrl+D
+          // 回车键，结束输入
+          if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false)
+          }
+          process.stdin.removeListener('data', onData)
+          process.stdout.write('\n')
+          resolve(password)
+          break
+        case '\u0003': // Ctrl+C
+          process.stdout.write('\n')
+          process.exit(1)
+          break
+        case '\u007F': // Backspace
+        case '\b':
+          // 删除字符
+          if (password.length > 0) {
+            password = password.slice(0, -1)
+            process.stdout.write('\b \b') // 退格、空格、退格
+          }
+          break
+        default:
+          // 普通字符
+          if (c.charCodeAt(0) >= 32) {
+            password += c
+            process.stdout.write('*') // 显示星号
+          }
+          break
       }
-      process.stdout.write('\n')
-      resolve(password)
-    })
+    }
+    
+    process.stdin.on('data', onData)
+    process.stdin.resume()
   })
 }
 
