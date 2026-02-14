@@ -34,13 +34,26 @@ async function verifySignature(payload: string, signature: string): Promise<bool
 // 执行更新脚本
 async function performUpdate(): Promise<void> {
   try {
-    // 使用现有的更新脚本
-    const { stdout, stderr } = await execAsync('bun run update', {
-      cwd: process.cwd(),
-      timeout: 300000 // 5分钟超时
+    const { spawn } = require('child_process')
+    const path = require('path')
+    
+    const updateScript = path.join(process.cwd(), 'scripts', 'update.sh')
+    
+    // 使用 env -i 启动脚本，确保干净的构建环境
+    const child = spawn('env', [
+      '-i',
+      `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin`,
+      `HOME=${process.env.HOME}`,
+      `USER=${process.env.USER}`,
+      updateScript
+    ], {
+      detached: true,
+      stdio: 'ignore',
+      cwd: process.cwd()
     })
-    console.log('Update stdout:', stdout)
-    if (stderr) console.error('Update stderr:', stderr)
+    
+    child.unref()
+    console.log('Update script started in background')
   } catch (error) {
     console.error('Update failed:', error)
     throw error
