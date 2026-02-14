@@ -39,27 +39,29 @@ async function performUpdate(): Promise<void> {
 
     const updateScript = path.join(process.cwd(), 'scripts', 'update.sh')
 
-    // 使用 env -i 启动脚本，确保干净的构建环境
-    const child = spawn('env', [
-      '-i',
-      `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin`,
-      `HOME=${process.env.HOME}`,
-      `USER=${process.env.USER}`,
-      updateScript
-    ], {
+    console.log('Starting update script:', updateScript)
+
+    // 直接执行脚本，让脚本自己处理环境清理
+    // 使用 inherit 让子进程继承 stdio，确保日志能正常写入
+    const child = spawn('bash', [updateScript], {
       detached: true,
-      stdio: 'ignore',
-      cwd: process.cwd()
+      stdio: 'inherit',
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin',
+        PROJECT_ROOT: process.cwd()
+      }
     })
 
     child.unref()
-    console.log('Update script started in background')
+    console.log('Update script started with PID:', child.pid)
 
     // 延迟退出主程序，确保脚本已启动
-    // 这与 update API 的行为保持一致
     setTimeout(() => {
+      console.log('Exiting main process to allow update to complete')
       process.exit(0)
-    }, 1000)
+    }, 2000)
   } catch (error) {
     console.error('Update failed:', error)
     throw error

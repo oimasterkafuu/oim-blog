@@ -7,18 +7,23 @@
 set -o pipefail
 
 # 清除从父进程继承的环境变量，避免干扰构建
-# 保留必要的环境变量
 unset NODE_OPTIONS
 unset NODE_PATH
 unset __NEXT_PREBUNDLED_REACT
 unset NEXT_PRIVATE_STANDALONE_CONFIG
 
-# 重置 PATH 确保使用系统默认
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin"
+# 确保 PATH 包含 bun
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin:$HOME/.bun/bin"
 
-# 获取脚本所在目录（项目根目录）
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
+# 获取项目根目录
+# 如果设置了 PROJECT_ROOT 环境变量则使用它（用于 webhook 调用）
+# 否则根据脚本位置自动推断
+if [ -n "$PROJECT_ROOT" ]; then
+  PROJECT_ROOT="$PROJECT_ROOT"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
+  PROJECT_ROOT="$SCRIPT_DIR"
+fi
 LOG_FILE="$PROJECT_ROOT/update.log"
 FLAG_FILE="$PROJECT_ROOT/.updating"
 
