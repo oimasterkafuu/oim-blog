@@ -57,15 +57,21 @@ export async function GET(request: NextRequest) {
       where.postId = postId
     }
 
-    // 后台管理模式：返回扁平化列表
+    // 后台管理模式：返回扁平化列表，隐藏回收站文章的评论
     if (flat && session) {
       const skip = (page - 1) * limit
       
+      // 添加过滤条件：不显示回收站文章的评论
+      const adminWhere = {
+        ...where,
+        post: { status: { not: 'trash' } }
+      }
+      
       const [comments, total] = await Promise.all([
         db.comment.findMany({
-          where,
+          where: adminWhere,
           include: {
-            post: { select: { id: true, title: true, slug: true } },
+            post: { select: { id: true, title: true, slug: true, status: true } },
             parent: {
               select: {
                 id: true,
@@ -79,7 +85,7 @@ export async function GET(request: NextRequest) {
           skip,
           take: limit
         }),
-        db.comment.count({ where })
+        db.comment.count({ where: adminWhere })
       ])
 
       return NextResponse.json({
@@ -93,10 +99,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 前台模式：按评论树聚合分页
+    // 前台模式：按评论树聚合分页，只显示已发布文章的评论
+    const publicWhere = {
+      ...where,
+      post: { status: 'published' }
+    }
+
     // 一次性获取所有符合条件的评论
     const allComments = await db.comment.findMany({
-      where,
+      where: publicWhere,
       include: {
         post: { select: { id: true, title: true, slug: true } },
         parent: {
