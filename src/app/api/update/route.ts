@@ -133,28 +133,29 @@ git reset --hard origin/main 2>&1 | tee -a "$LOG_FILE"
 
 log "代码已同步到最新版本"
 
-# 步骤 2: 安装依赖
+# 步骤 2: 安装依赖（使用 package.json 锁定的版本）
 log "步骤 2: 安装依赖..."
 
-bun install 2>&1 | tee -a "$LOG_FILE"
+if ! bun install 2>&1 | tee -a "$LOG_FILE"; then
+    log "错误: 安装依赖失败"
+    exit 1
+fi
 
-# 步骤 3: 清理旧构建
+# 步骤 3: 清理旧构建和 Prisma 缓存
 log "步骤 3: 清理旧构建..."
 
-rm -rf .next node_modules/.cache node_modules/.prisma node_modules/@prisma/client
+rm -rf .next node_modules/.cache node_modules/.prisma
 
-# 步骤 4: 重新安装 Prisma 客户端
-log "步骤 4: 重新安装 Prisma 客户端..."
+# 步骤 4: 生成 Prisma 客户端（不重新安装，使用已安装的版本）
+log "步骤 4: 生成 Prisma 客户端..."
 
-bun add @prisma/client 2>&1 | tee -a "$LOG_FILE"
+if ! bunx prisma generate 2>&1 | tee -a "$LOG_FILE"; then
+    log "错误: Prisma 客户端生成失败"
+    exit 1
+fi
 
-# 步骤 5: 生成 Prisma 客户端
-log "步骤 5: 生成 Prisma 客户端..."
-
-bun run db:generate 2>&1 | tee -a "$LOG_FILE"
-
-# 步骤 6: 构建项目
-log "步骤 6: 构建项目..."
+# 步骤 5: 构建项目
+log "步骤 5: 构建项目..."
 
 if bun run build 2>&1 | tee -a "$LOG_FILE"; then
     log "构建成功"
@@ -164,15 +165,15 @@ else
     exit 1
 fi
 
-# 步骤 7: 数据库迁移
-log "步骤 7: 数据库迁移..."
+# 步骤 6: 数据库迁移
+log "步骤 6: 数据库迁移..."
 
 if [ -d "prisma/migrations" ]; then
     bunx prisma migrate deploy 2>&1 | tee -a "$LOG_FILE" || log "警告: 数据库迁移可能失败"
 fi
 
-# 步骤 8: 重启服务
-log "步骤 8: 重启服务..."
+# 步骤 7: 重启服务
+log "步骤 7: 重启服务..."
 
 # 强制杀死所有占用端口 3000 的进程
 log "释放端口 3000..."
