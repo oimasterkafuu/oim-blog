@@ -24,7 +24,8 @@ export function AdminSettings() {
     comments_per_page: '20',
     ai_api_url: '',
     ai_model_name: '',
-    ai_api_key: ''
+    ai_api_key: '',
+    jwt_secret: ''
   })
   const [userForm, setUserForm] = useState({
     newName: '',
@@ -68,7 +69,8 @@ export function AdminSettings() {
           comments_per_page: settingsData.settings.comments_per_page || '20',
           ai_api_url: settingsData.settings.ai_api_url || '',
           ai_model_name: settingsData.settings.ai_model_name || '',
-          ai_api_key: settingsData.settings.ai_api_key || ''
+          ai_api_key: settingsData.settings.ai_api_key || '',
+          jwt_secret: settingsData.settings.jwt_secret || ''
         })
       }
 
@@ -102,9 +104,13 @@ export function AdminSettings() {
         body: JSON.stringify(settings)
       })
       const data = await res.json()
-      
+
       if (data.success) {
-        toast.success('设置已保存')
+        if (data.sessionRotated) {
+          toast.success(data.message || '设置已保存，Session 已重新签发')
+        } else {
+          toast.success('设置已保存')
+        }
       } else {
         toast.error('保存失败')
       }
@@ -457,6 +463,16 @@ export function AdminSettings() {
               onChange={e => setSettings({ ...settings, site_keywords: e.target.value })}
               placeholder="博客,技术,分享"
             />
+          </div>
+          <div className="space-y-2">
+            <Label>JWT Secret</Label>
+            <Input
+              type="password"
+              value={settings.jwt_secret}
+              onChange={e => setSettings({ ...settings, jwt_secret: e.target.value })}
+              placeholder="留空表示使用系统自动生成的密钥"
+            />
+            <p className="text-xs text-muted-foreground">修改后会重新签发当前会话的 Token，其他用户需要重新登录</p>
           </div>
           <div className="flex justify-end">
             <Button onClick={handleSaveSettings} disabled={saving}>

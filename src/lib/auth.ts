@@ -84,11 +84,48 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
   }
 }
 
+// Token 刷新：如果 token 即将过期（剩余时间少于1天），则签发新 token
+export async function refreshToken(token: string): Promise<string | null> {
+  try {
+    const secretKey = await getJwtSecret()
+    const { payload } = await jwtVerify(token, secretKey)
+    const user = payload.user as SessionUser
+    
+    // 检查过期时间
+    const exp = payload.exp
+    if (!exp) return null
+    
+    const now = Math.floor(Date.now() / 1000)
+    const oneDay = 24 * 60 * 60
+    
+    // 如果剩余时间少于1天，刷新 token
+    if (exp - now < oneDay) {
+      return createToken(user)
+    }
+    
+    return null // 不需要刷新
+  } catch {
+    return null // token 无效
+  }
+}
+
 // Session 管理
 export async function getSession(): Promise<SessionUser | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get('session')?.value
   if (!token) return null
+  
+  // 尝试刷新 token（如果即将过期）
+  const refreshedToken = await refreshToken(token)
+  if (refreshedToken) {
+    cookieStore.set('session', refreshedToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7
+    })
+  }
+  
   return verifyToken(token)
 }
 
@@ -106,6 +143,32 @@ export async function setSession(user: SessionUser) {
 export async function clearSession() {
   const cookieStore = await cookies()
   cookieStore.delete('session')
+}
+
+// 更新 JWT Secret 并重新签发当前用户的 session
+export async function rotateSession(): Promise<boolean> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get('session')?.value
+  if (!token) return false
+  
+  try {
+    // 使用旧 secret 验证 token（需要存储旧 secret 或使用试错机制）
+    // 这里简化为：如果验证失败，不强制登出，保留原 token
+    const user = await verifyToken(token)
+    if (!user) return false
+    
+    // 使用新 secret 重新签发
+    const newToken = await createToken(user)
+    cookieStore.set('session', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 // 数据库操作
