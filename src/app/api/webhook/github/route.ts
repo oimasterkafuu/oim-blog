@@ -36,9 +36,9 @@ async function performUpdate(): Promise<void> {
   try {
     const { spawn } = require('child_process')
     const path = require('path')
-    
+
     const updateScript = path.join(process.cwd(), 'scripts', 'update.sh')
-    
+
     // 使用 env -i 启动脚本，确保干净的构建环境
     const child = spawn('env', [
       '-i',
@@ -51,9 +51,15 @@ async function performUpdate(): Promise<void> {
       stdio: 'ignore',
       cwd: process.cwd()
     })
-    
+
     child.unref()
     console.log('Update script started in background')
+
+    // 延迟退出主程序，确保脚本已启动
+    // 这与 update API 的行为保持一致
+    setTimeout(() => {
+      process.exit(0)
+    }, 1000)
   } catch (error) {
     console.error('Update failed:', error)
     throw error
