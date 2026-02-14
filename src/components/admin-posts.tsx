@@ -23,8 +23,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { MarkdownRenderer } from '@/components/markdown'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Eye, Search, RotateCcw, ArrowLeft, Save, Sparkles, Loader2, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Search, RotateCcw, ArrowLeft, Save, Sparkles, Loader2, RefreshCw, Edit, Eye as EyeIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 
@@ -80,6 +83,8 @@ export function AdminPosts() {
 }
 
 function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void }) {
+  const isMobile = useIsMobile()
+  const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit')
   const [categories, setCategories] = useState<Category[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(!!editId)
@@ -102,6 +107,9 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
   })
   const initialDataRef = useRef<string>('')
   const prevSlugRef = useRef<string>('')
+  const editorRef = useRef<HTMLTextAreaElement>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
+  const isSyncingRef = useRef(false)
 
   useEffect(() => {
     loadData()
@@ -320,6 +328,41 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
     }
   }
 
+  // 同步滚动处理函数
+  const handleEditorScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (isSyncingRef.current || !previewRef.current) return
+
+    isSyncingRef.current = true
+    const editor = e.currentTarget
+    const preview = previewRef.current
+
+    const scrollRatio = editor.scrollTop / (editor.scrollHeight - editor.clientHeight)
+    const previewScrollTop = scrollRatio * (preview.scrollHeight - preview.clientHeight)
+
+    preview.scrollTop = previewScrollTop
+
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false
+    })
+  }, [])
+
+  const handlePreviewScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncingRef.current || !editorRef.current) return
+
+    isSyncingRef.current = true
+    const preview = e.currentTarget
+    const editor = editorRef.current
+
+    const scrollRatio = preview.scrollTop / (preview.scrollHeight - preview.clientHeight)
+    const editorScrollTop = scrollRatio * (editor.scrollHeight - editor.clientHeight)
+
+    editor.scrollTop = editorScrollTop
+
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false
+    })
+  }, [])
+
   const handleBackClick = () => {
     if (hasUnsavedChanges) {
       if (!confirm('您有未保存的更改，确定要离开吗？')) {
@@ -452,12 +495,71 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
 
         <div className="space-y-2">
           <Label>内容 (Markdown)</Label>
-          <Textarea
-            value={formData.content}
-            onChange={e => setFormData({ ...formData, content: e.target.value })}
-            placeholder="# 标题&#10;&#10;文章内容..."
-            className="editor-textarea font-mono"
-          />
+          {isMobile ? (
+            <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as 'edit' | 'preview')} className="w-full">
+              <TabsList className="w-full">
+                <TabsTrigger value="edit" className="flex-1">
+                  <Edit className="h-4 w-4 mr-2" />
+                  编辑
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="flex-1">
+                  <EyeIcon className="h-4 w-4 mr-2" />
+                  预览
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="edit" className="mt-2">
+                <Textarea
+                  value={formData.content}
+                  onChange={e => setFormData({ ...formData, content: e.target.value })}
+                  placeholder="# 标题&#10;&#10;文章内容..."
+                  className="editor-textarea font-mono min-h-[400px]"
+                />
+              </TabsContent>
+              <TabsContent value="preview" className="mt-2">
+                <div className="border rounded-md p-4 min-h-[400px] overflow-auto bg-background">
+                  {formData.content ? (
+                    <MarkdownRenderer content={formData.content} />
+                  ) : (
+                    <p className="text-muted-foreground text-center">暂无内容</p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Edit className="h-3 w-3" />
+                  编辑
+                </span>
+                <Textarea
+                  ref={editorRef}
+                  value={formData.content}
+                  onChange={e => setFormData({ ...formData, content: e.target.value })}
+                  onScroll={handleEditorScroll}
+                  placeholder="# 标题&#10;&#10;文章内容..."
+                  className="editor-textarea font-mono !h-[600px] resize-none overflow-auto field-sizing-fixed"
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                  <EyeIcon className="h-3 w-3" />
+                  预览
+                </span>
+                <div
+                  ref={previewRef}
+                  onScroll={handlePreviewScroll}
+                  className="border rounded-md p-2 h-[600px] overflow-auto bg-background [&>*:first-child>*:first-child]:!mt-0"
+                >
+                  {formData.content ? (
+                    <MarkdownRenderer content={formData.content} />
+                  ) : (
+                    <p className="text-muted-foreground text-center">暂无内容</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

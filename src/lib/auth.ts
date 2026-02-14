@@ -3,21 +3,44 @@ import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
 // 生成随机密钥
-function generateRandomSecret(): Uint8Array {
+function generateRandomSecret(): string {
   const randomBytes = new Uint8Array(32)
   crypto.getRandomValues(randomBytes)
-  return randomBytes
+  return Array.from(randomBytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
-// 使用 globalThis 存储密钥，确保在开发模式下热重载时不会重新生成
-const globalForSecret = globalThis as unknown as {
-  jwtSecret: Uint8Array | undefined
-}
+// 从数据库获取或创建 JWT secret
+async function getJwtSecret(): Promise<Uint8Array> {
+  const setting = await db.setting.findUnique({
+    where: { key: 'jwt_secret' }
+  })
 
-const SECRET_KEY = globalForSecret.jwtSecret ?? generateRandomSecret()
+  if (setting?.value) {
+    // 将十六进制字符串转换为 Uint8Array
+    const hexString = setting.value
+    const bytes = new Uint8Array(32)
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = parseInt(hexString.substring(i * 2, i * 2 + 2), 16)
+    }
+    return bytes
+  }
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForSecret.jwtSecret = SECRET_KEY
+  // 如果不存在，生成新的 secret 并存储
+  const newSecret = generateRandomSecret()
+  await db.setting.create({
+    data: {
+      key: 'jwt_secret',
+      value: newSecret
+    }
+  })
+
+  const bytes = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = parseInt(newSecret.substring(i * 2, i * 2 + 2), 16)
+  }
+  return bytes
 }
 
 export interface SessionUser {
@@ -43,16 +66,18 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 // JWT 相关
 export async function createToken(user: SessionUser): Promise<string> {
+  const secretKey = await getJwtSecret()
   return await new SignJWT({ user })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(SECRET_KEY)
+    .sign(secretKey)
 }
 
 export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY)
+    const secretKey = await getJwtSecret()
+    const { payload } = await jwtVerify(token, secretKey)
     return payload.user as SessionUser
   } catch {
     return null
