@@ -87,7 +87,7 @@ export function AdminTags() {
       const res = await fetch('/api/slug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: name })
+        body: JSON.stringify({ title: name, type: 'tag', excludeId: editingTag?.id })
       })
       const data = await res.json()
       if (data.slug) {
@@ -114,7 +114,7 @@ export function AdminTags() {
           const res = await fetch('/api/slug', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: newName })
+            body: JSON.stringify({ title: newName, type: 'tag', excludeId: editingTag?.id })
           })
           const data = await res.json()
           if (data.slug) {

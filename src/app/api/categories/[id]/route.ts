@@ -55,7 +55,7 @@ export async function PUT(
       if (!slugValidation.valid) {
         return NextResponse.json({ error: slugValidation.error }, { status: 400 })
       }
-      const slugConflict = await checkSlugConflict(slug, db)
+      const slugConflict = await checkSlugConflict(slug, db, { type: 'category', excludeId: id })
       if (slugConflict.conflict && slugConflict.type !== 'category') {
         return NextResponse.json({ error: slugConflict.message }, { status: 400 })
       }

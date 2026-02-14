@@ -185,7 +185,7 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
       const res = await fetch('/api/slug', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title })
+        body: JSON.stringify({ title, type: 'post', excludeId: editId })
       })
       const data = await res.json()
       if (data.slug) {
@@ -212,7 +212,7 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
           const res = await fetch('/api/slug', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: newTitle })
+            body: JSON.stringify({ title: newTitle, type: 'post', excludeId: editId })
           })
           const data = await res.json()
           if (data.slug) {

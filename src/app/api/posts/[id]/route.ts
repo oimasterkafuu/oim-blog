@@ -91,13 +91,13 @@ export async function PUT(
       if (!slugValidation.valid) {
         return NextResponse.json({ error: slugValidation.error }, { status: 400 })
       }
-      const slugConflict = await checkSlugConflict(slug, db, id)
+      const slugConflict = await checkSlugConflict(slug, db, { type: 'post', excludeId: id })
       if (slugConflict.conflict) {
         return NextResponse.json({ error: slugConflict.message }, { status: 400 })
       }
     } else if (!slug && title && title !== existingPost.title) {
       slug = generateSlug(title)
-      const slugConflict = await checkSlugConflict(slug, db, id)
+      const slugConflict = await checkSlugConflict(slug, db, { type: 'post', excludeId: id })
       if (slugConflict.conflict) {
         slug = existingPost.slug
       }

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: slugValidation.error }, { status: 400 })
     }
 
-    const slugConflict = await checkSlugConflict(slug, db)
+    const slugConflict = await checkSlugConflict(slug, db, { type: 'category' })
     if (slugConflict.conflict) {
       return NextResponse.json({ error: slugConflict.message }, { status: 400 })
     }

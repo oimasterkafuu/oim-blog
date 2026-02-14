@@ -35,12 +35,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 检查 slug 冲突，如有冲突则添加后缀
-    const conflict = await checkSlugConflict(slug, db)
+    const conflict = await checkSlugConflict(slug, db, { type: 'category' })
     if (conflict.conflict) {
       let counter = 1
       while (true) {
         const newSlug = `${slug}-${counter}`
-        const c = await checkSlugConflict(newSlug, db)
+        const c = await checkSlugConflict(newSlug, db, { type: 'category' })
         if (!c.conflict) {
           slug = newSlug
           break
