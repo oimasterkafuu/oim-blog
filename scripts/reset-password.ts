@@ -70,7 +70,7 @@ function questionHidden(prompt: string): Promise<string> {
           // 普通字符
           if (c.charCodeAt(0) >= 32) {
             password += c
-            process.stdout.write('*') // 显示星号
+            process.stdout.write(c) // 显示明文
           }
           break
       }
