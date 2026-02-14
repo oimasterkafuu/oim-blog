@@ -100,6 +100,16 @@ function createUpdateScript() {
 # 启用 pipefail 以正确检测管道命令的失败
 set -o pipefail
 
+# 清除从父进程继承的环境变量，避免干扰构建
+# 保留必要的环境变量
+unset NODE_OPTIONS
+unset NODE_PATH
+unset __NEXT_PREBUNDLED_REACT
+unset NEXT_PRIVATE_STANDALONE_CONFIG
+
+# 重置 PATH 确保使用系统默认
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin"
+
 PROJECT_ROOT="${projectRoot}"
 LOG_FILE="${UPDATE_LOG_PATH}"
 FLAG_FILE="${UPDATE_FLAG_PATH}"
@@ -211,9 +221,16 @@ log "========================================="
     
     writeFileSync(UPDATE_SCRIPT_PATH, script, { mode: 0o755 })
     
-    // 使用 nohup 在后台执行脚本，立即返回
+    // 使用 env -i 启动脚本，确保干净的构建环境
+    // 只传递必要的环境变量
     const { spawn } = require('child_process')
-    const child = spawn('nohup', [UPDATE_SCRIPT_PATH], {
+    const child = spawn('env', [
+      '-i',
+      `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin`,
+      `HOME=${process.env.HOME}`,
+      `USER=${process.env.USER}`,
+      UPDATE_SCRIPT_PATH
+    ], {
       detached: true,
       stdio: 'ignore',
       cwd: PATHS.projectRoot
