@@ -33,8 +33,8 @@ export function PostCard({ post, showCategory = true, highlightTagSlug }: PostCa
   const excerptContent = post.excerpt || post.content?.slice(0, 200) + '...' || ''
 
   return (
-    <Card className="hover:shadow-lg transition-shadow">
-      <CardHeader className="pb-3">
+    <Card className="hover:shadow-lg transition-shadow gap-3">
+      <CardHeader className="pb-2">
         <Link href={`/post/${post.slug}`}>
           <h2 className="text-xl font-semibold hover:text-primary transition-colors">
             {post.title}
@@ -70,7 +70,7 @@ export function PostCard({ post, showCategory = true, highlightTagSlug }: PostCa
         <div className="text-muted-foreground line-clamp-3">
           <MarkdownRenderer content={excerptContent} className="!my-0 prose-sm" />
         </div>
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-2 mt-3">
           {showCategory && post.category && (
             <Link href={`/category/${post.category.slug}`}>
               <Badge variant="secondary">{post.category.name}</Badge>
