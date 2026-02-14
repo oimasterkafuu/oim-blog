@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Save, Sparkles, Info, Download, Upload, Trash2, Database, User, Key, RefreshCw, Image as ImageIcon } from 'lucide-react'
+import { Save, Sparkles, Info, Download, Upload, Trash2, Database, User, Key, RefreshCw, Image as ImageIcon, Rocket } from 'lucide-react'
 import { useBlog } from './blog-provider'
 
 interface BackupFile {
@@ -326,6 +326,80 @@ export function AdminSettings() {
       toast.error('删除失败')
     }
   }
+
+  // 自动更新相关状态
+  const [updating, setUpdating] = useState(false)
+  const [updateProgress, setUpdateProgress] = useState<{ step: string; status: string; message?: string }[]>([])
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // 轮询更新进度
+  const pollUpdateProgress = useCallback(async () => {
+    try {
+      const res = await fetch('/api/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'poll' })
+      })
+      const data = await res.json()
+      
+      setUpdateProgress(data.progress || [])
+      setUpdating(data.isUpdating || false)
+      
+      // 如果更新完成，停止轮询
+      if (!data.isUpdating) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+      }
+    } catch (error) {
+      console.error('Poll update progress error:', error)
+    }
+  }, [])
+
+  // 开始自动更新
+  const handleAutoUpdate = async () => {
+    if (!confirm('确定要从 GitHub 拉取最新代码并重新构建吗？更新期间服务可能会暂时不可用。')) {
+      return
+    }
+
+    setUpdating(true)
+    setUpdateProgress([])
+
+    try {
+      const res = await fetch('/api/update', { method: 'POST' })
+      const data = await res.json()
+      
+      if (data.success) {
+        toast.success('更新已开始')
+        setUpdateProgress(data.progress || [])
+        
+        // 开始轮询进度
+        pollIntervalRef.current = setInterval(pollUpdateProgress, 2000)
+      } else if (data.isUpdating) {
+        toast.info('正在更新中，请稍候...')
+        setUpdateProgress(data.progress || [])
+        
+        // 开始轮询进度
+        pollIntervalRef.current = setInterval(pollUpdateProgress, 2000)
+      } else {
+        toast.error(data.error || '更新失败')
+        setUpdating(false)
+      }
+    } catch {
+      toast.error('更新失败')
+      setUpdating(false)
+    }
+  }
+
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
+  }, [])
 
   if (loading) {
     return <div className="text-center text-muted-foreground py-8">加载中...</div>
@@ -687,6 +761,88 @@ export function AdminSettings() {
                 <li>点击"上传并恢复"可选择本地备份文件恢复数据库</li>
                 <li>恢复数据库会覆盖当前所有数据，请谨慎操作</li>
                 <li>建议在重要操作前先备份数据库</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 系统更新 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Rocket className="h-5 w-5 text-primary" />
+            <CardTitle>系统更新</CardTitle>
+          </div>
+          <CardDescription>从 GitHub 拉取最新代码并重新构建</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* 更新按钮 */}
+          <div className="flex flex-wrap gap-4">
+            <Button 
+              onClick={handleAutoUpdate} 
+              disabled={updating}
+              variant="default"
+            >
+              {updating ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Rocket className="h-4 w-4 mr-2" />
+              )}
+              {updating ? '更新中...' : '自动更新'}
+            </Button>
+          </div>
+
+          {/* 更新进度 */}
+          {updateProgress.length > 0 && (
+            <div className="space-y-3">
+              <Label className="text-sm text-muted-foreground">更新进度</Label>
+              <div className="space-y-2">
+                {updateProgress.map((step, index) => (
+                  <div 
+                    key={step.step}
+                    className="flex items-center gap-3 p-3 bg-muted rounded-lg"
+                  >
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium shrink-0"
+                      style={{
+                        backgroundColor: step.status === 'success' ? 'hsl(var(--primary))' :
+                          step.status === 'error' ? 'hsl(var(--destructive))' :
+                            step.status === 'running' ? 'hsl(var(--primary) / 0.5)' :
+                              'hsl(var(--muted-foreground) / 0.3)',
+                        color: step.status === 'pending' ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary-foreground))'
+                      }}
+                    >
+                      {step.status === 'success' ? '✓' :
+                        step.status === 'error' ? '✗' :
+                          step.status === 'running' ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {step.step === 'fetch' ? '获取代码' :
+                          step.step === 'build' ? '构建项目' :
+                            '重启服务'}
+                      </p>
+                      {step.message && (
+                        <p className="text-xs text-muted-foreground">{step.message}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 p-4 bg-muted rounded-lg">
+            <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="text-sm text-muted-foreground">
+              <p className="mb-2">更新说明：</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>点击"自动更新"将从 GitHub 拉取最新代码</li>
+                <li>更新过程会自动执行 bun install、数据库迁移和构建</li>
+                <li>构建完成后服务将自动重启</li>
+                <li>更新期间服务可能会短暂不可用</li>
               </ul>
             </div>
           </div>
