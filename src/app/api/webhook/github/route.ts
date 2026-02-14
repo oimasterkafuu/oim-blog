@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { exec } from 'child_process'
-import { promisify } from 'util'
+import { PATHS } from '@/lib/paths'
 import * as crypto from 'crypto'
-
-const execAsync = promisify(exec)
 
 // 验证 GitHub webhook 签名
 async function verifySignature(payload: string, signature: string): Promise<boolean> {
@@ -37,20 +34,22 @@ async function performUpdate(): Promise<void> {
     const { spawn } = require('child_process')
     const path = require('path')
 
-    const updateScript = path.join(process.cwd(), 'scripts', 'update.sh')
+    // 使用 PATHS.projectRoot 确保在 standalone 模式下也能找到正确的路径
+    const updateScript = path.join(PATHS.projectRoot, 'scripts', 'update.sh')
 
     console.log('Starting update script:', updateScript)
+    console.log('Project root:', PATHS.projectRoot)
 
     // 直接执行脚本，让脚本自己处理环境清理
     // 使用 inherit 让子进程继承 stdio，确保日志能正常写入
     const child = spawn('bash', [updateScript], {
       detached: true,
       stdio: 'inherit',
-      cwd: process.cwd(),
+      cwd: PATHS.projectRoot,
       env: {
         ...process.env,
         PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin',
-        PROJECT_ROOT: process.cwd()
+        PROJECT_ROOT: PATHS.projectRoot
       }
     })
 
