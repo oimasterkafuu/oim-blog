@@ -259,7 +259,11 @@ export function AdminSettings() {
       const data = await res.json()
       
       if (data.success) {
-        toast.success(data.message)
+        if (data.autoBackupCreated) {
+          toast.success(`${data.message}（已自动备份当前数据为 ${data.autoBackupFilename}）`)
+        } else {
+          toast.success(data.message)
+        }
         setTimeout(() => {
           window.location.reload()
         }, 1500)
@@ -299,7 +303,11 @@ export function AdminSettings() {
       const data = await res.json()
       
       if (data.success) {
-        toast.success(data.message)
+        if (data.autoBackupCreated) {
+          toast.success(`${data.message}（已自动备份当前数据为 ${data.autoBackupFilename}）`)
+        } else {
+          toast.success(data.message)
+        }
         setTimeout(() => {
           window.location.reload()
         }, 1500)

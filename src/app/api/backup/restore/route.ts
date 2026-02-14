@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { PATHS } from '@/lib/paths'
-import { db } from '@/lib/db'
 import fs from 'fs/promises'
 import path from 'path'
 import { exec } from 'child_process'
@@ -42,6 +41,50 @@ async function compareSchemas(sourcePath: string, targetPath: string): Promise<{
     missingTables,
     extraTables
   }
+}
+
+// 检查是否存在 5 分钟内的备份
+async function hasRecentBackup(): Promise<boolean> {
+  const backupDir = path.join(process.cwd(), 'public', 'backups')
+  try {
+    await fs.access(backupDir)
+    const files = await fs.readdir(backupDir)
+    const dbFiles = files.filter(f => f.endsWith('.db'))
+    
+    const now = Date.now()
+    const fiveMinutes = 5 * 60 * 1000
+    
+    for (const file of dbFiles) {
+      const filePath = path.join(backupDir, file)
+      const stat = await fs.stat(filePath)
+      if (now - stat.mtimeMs < fiveMinutes) {
+        return true
+      }
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+// 创建自动备份
+async function createAutoBackup(): Promise<string | null> {
+  const dbPath = PATHS.dbFile
+  try {
+    await fs.access(dbPath)
+  } catch {
+    return null // 当前数据库不存在
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupDir = path.join(process.cwd(), 'public', 'backups')
+  await fs.mkdir(backupDir, { recursive: true })
+  
+  const backupFilename = `auto-backup-${timestamp}.db`
+  const backupPath = path.join(backupDir, backupFilename)
+  
+  await fs.copyFile(dbPath, backupPath)
+  return backupFilename
 }
 
 export async function POST(request: NextRequest) {
@@ -124,13 +167,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 备份当前数据库
-    const backupPath = path.join(PATHS.dbDir, `data.db.bak-${Date.now()}`)
+    // 检查是否有 5 分钟内的备份，如果没有则自动备份当前数据库
+    let autoBackupFilename: string | null = null
     if (currentDbExists) {
-      await fs.copyFile(dbPath, backupPath)
+      const hasRecent = await hasRecentBackup()
+      if (!hasRecent) {
+        autoBackupFilename = await createAutoBackup()
+      }
     }
 
-    // 关闭当前数据库连接（Prisma）
     // 写入新的数据库文件
     await fs.copyFile(tempPath, dbPath)
     
@@ -140,8 +185,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       message: '数据库已恢复，请刷新页面以加载新数据',
-      backupCreated: currentDbExists,
-      backupPath: currentDbExists ? path.basename(backupPath) : null
+      autoBackupCreated: autoBackupFilename !== null,
+      autoBackupFilename
     })
   } catch (error) {
     console.error('Restore error:', error)
