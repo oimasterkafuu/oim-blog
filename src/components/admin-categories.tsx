@@ -20,6 +20,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, RefreshCw, Loader2 } from 'lucide-react'
@@ -46,6 +56,10 @@ export function AdminCategories() {
     order: 0
   })
   const prevSlugRef = useRef<string>('')
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; category: Category | null }>({
+    open: false,
+    category: null
+  })
 
   useEffect(() => {
     loadData()
@@ -174,11 +188,15 @@ export function AdminCategories() {
     }
   }
 
-  const handleDelete = async (category: Category) => {
-    if (!confirm(`确定要删除分类 "${category.name}" 吗？`)) return
+  const handleDelete = (category: Category) => {
+    setDeleteDialog({ open: true, category })
+  }
 
+  const confirmDelete = async () => {
+    if (!deleteDialog.category) return
+    
     try {
-      const res = await fetch(`/api/categories/${category.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/categories/${deleteDialog.category.id}`, { method: 'DELETE' })
       const data = await res.json()
       
       if (data.success) {
@@ -189,6 +207,8 @@ export function AdminCategories() {
       }
     } catch {
       toast.error('操作失败')
+    } finally {
+      setDeleteDialog({ open: false, category: null })
     }
   }
 
@@ -304,6 +324,24 @@ export function AdminCategories() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除分类 "{deleteDialog.category?.name}" 吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

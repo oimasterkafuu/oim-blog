@@ -23,6 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Eye, ArrowLeft, Save, Loader2, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
@@ -67,6 +77,7 @@ function PageEditor({ editId, onBack }: { editId?: string; onBack: () => void })
   const [saving, setSaving] = useState(false)
   const [generatingSlug, setGeneratingSlug] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [leaveDialog, setLeaveDialog] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -146,11 +157,10 @@ function PageEditor({ editId, onBack }: { editId?: string; onBack: () => void })
 
   const handleBackClick = () => {
     if (hasUnsavedChanges) {
-      if (!confirm('您有未保存的更改，确定要离开吗？')) {
-        return
-      }
+      setLeaveDialog(true)
+    } else {
+      onBack()
     }
-    onBack()
   }
 
   const handleSubmit = async () => {
@@ -285,6 +295,22 @@ function PageEditor({ editId, onBack }: { editId?: string; onBack: () => void })
           </div>
         </div>
       </div>
+
+      {/* 离开确认对话框 */}
+      <AlertDialog open={leaveDialog} onOpenChange={setLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>未保存的更改</AlertDialogTitle>
+            <AlertDialogDescription>
+              您有未保存的更改，确定要离开吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={onBack}>离开</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -292,6 +318,10 @@ function PageEditor({ editId, onBack }: { editId?: string; onBack: () => void })
 function PageList({ onEdit }: { onEdit: (id?: string) => void }) {
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; page: Page | null }>({
+    open: false,
+    page: null
+  })
   const fetchingRef = useRef(false)
 
   const loadData = useCallback(async () => {
@@ -315,11 +345,15 @@ function PageList({ onEdit }: { onEdit: (id?: string) => void }) {
     loadData()
   }, [loadData])
 
-  const handleDelete = async (page: Page) => {
-    if (!confirm(`确定要删除页面 "${page.title}" 吗？`)) return
+  const handleDelete = (page: Page) => {
+    setDeleteDialog({ open: true, page })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.page) return
 
     try {
-      const res = await fetch(`/api/pages/${page.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/pages/${deleteDialog.page.id}`, { method: 'DELETE' })
       const data = await res.json()
 
       if (data.success) {
@@ -331,6 +365,8 @@ function PageList({ onEdit }: { onEdit: (id?: string) => void }) {
       }
     } catch {
       toast.error('操作失败')
+    } finally {
+      setDeleteDialog({ open: false, page: null })
     }
   }
 
@@ -400,6 +436,24 @@ function PageList({ onEdit }: { onEdit: (id?: string) => void }) {
           )}
         </CardContent>
       </Card>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除页面 "{deleteDialog.page?.title}" 吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

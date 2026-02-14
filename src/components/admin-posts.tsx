@@ -24,6 +24,16 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { MarkdownRenderer } from '@/components/markdown'
 import { toast } from 'sonner'
@@ -95,6 +105,7 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [leaveDialog, setLeaveDialog] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -365,11 +376,10 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
 
   const handleBackClick = () => {
     if (hasUnsavedChanges) {
-      if (!confirm('您有未保存的更改，确定要离开吗？')) {
-        return
-      }
+      setLeaveDialog(true)
+    } else {
+      onBack()
     }
-    onBack()
   }
 
   const handleSubmit = async () => {
@@ -717,6 +727,22 @@ function PostEditor({ editId, onBack }: { editId?: string; onBack: () => void })
           </div>
         )}
       </div>
+
+      {/* 离开确认对话框 */}
+      <AlertDialog open={leaveDialog} onOpenChange={setLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>未保存的更改</AlertDialogTitle>
+            <AlertDialogDescription>
+              您有未保存的更改，确定要离开吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={onBack}>离开</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -728,6 +754,11 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 })
   const [currentPage, setCurrentPage] = useState(1)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; post: Post | null; permanent: boolean }>({
+    open: false,
+    post: null,
+    permanent: false
+  })
   const fetchingRef = useRef(false)
 
   const loadData = useCallback(async (page: number = 1) => {
@@ -760,18 +791,20 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
     loadData(1)
   }, [loadData])
 
-  const handleDelete = async (post: Post, permanent = false) => {
-    if (!confirm(permanent ? '确定要永久删除这篇文章吗？' : '确定要将文章移到回收站吗？')) {
-      return
-    }
+  const handleDelete = (post: Post, permanent = false) => {
+    setDeleteDialog({ open: true, post, permanent })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.post) return
 
     try {
-      const url = `/api/posts/${post.id}${permanent ? '?permanent=true' : ''}`
+      const url = `/api/posts/${deleteDialog.post.id}${deleteDialog.permanent ? '?permanent=true' : ''}`
       const res = await fetch(url, { method: 'DELETE' })
       const data = await res.json()
 
       if (data.success) {
-        toast.success(permanent ? '文章已永久删除' : '文章已移到回收站')
+        toast.success(deleteDialog.permanent ? '文章已永久删除' : '文章已移到回收站')
         fetchingRef.current = false
         loadData(currentPage)
       } else {
@@ -779,6 +812,8 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
       }
     } catch {
       toast.error('操作失败')
+    } finally {
+      setDeleteDialog({ open: false, post: null, permanent: false })
     }
   }
 
@@ -970,6 +1005,24 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
           )}
         </CardContent>
       </Card>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDialog.permanent ? '确定要永久删除这篇文章吗？' : '确定要将文章移到回收站吗？'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteDialog.permanent ? '永久删除' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

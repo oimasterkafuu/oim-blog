@@ -20,6 +20,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, RefreshCw, Loader2 } from 'lucide-react'
 
@@ -38,6 +48,10 @@ export function AdminTags() {
   const [generatingSlug, setGeneratingSlug] = useState(false)
   const [formData, setFormData] = useState({ name: '', slug: '' })
   const prevSlugRef = useRef<string>('')
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; tag: Tag | null }>({
+    open: false,
+    tag: null
+  })
 
   useEffect(() => {
     loadData()
@@ -161,11 +175,15 @@ export function AdminTags() {
     }
   }
 
-  const handleDelete = async (tag: Tag) => {
-    if (!confirm(`确定要删除标签 "${tag.name}" 吗？`)) return
+  const handleDelete = (tag: Tag) => {
+    setDeleteDialog({ open: true, tag })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.tag) return
 
     try {
-      const res = await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/tags/${deleteDialog.tag.id}`, { method: 'DELETE' })
       const data = await res.json()
       
       if (data.success) {
@@ -176,6 +194,8 @@ export function AdminTags() {
       }
     } catch {
       toast.error('操作失败')
+    } finally {
+      setDeleteDialog({ open: false, tag: null })
     }
   }
 
@@ -274,6 +294,24 @@ export function AdminTags() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除标签 "{deleteDialog.tag?.name}" 吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -3,6 +3,16 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { Upload, Trash2, Copy, File, FileText, Film, Music, RefreshCw, Eye } from 'lucide-react'
 import { ImageIcon } from 'lucide-react'
@@ -20,6 +30,10 @@ export function AdminFiles() {
   const [files, setFiles] = useState<FileInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; filename: string | null }>({
+    open: false,
+    filename: null
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchFiles = useCallback(async () => {
@@ -85,25 +99,29 @@ export function AdminFiles() {
     fetchFiles()
   }
 
-  const handleDelete = async (filename: string) => {
-    if (!confirm(`确定要删除 ${filename} 吗？`)) {
-      return
-    }
+  const handleDelete = (filename: string) => {
+    setDeleteDialog({ open: true, filename })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.filename) return
 
     try {
-      const res = await fetch(`/api/files/${filename}`, {
+      const res = await fetch(`/api/files/${deleteDialog.filename}`, {
         method: 'DELETE'
       })
       const data = await res.json()
 
       if (data.success) {
         toast.success('文件已删除')
-        setFiles(prev => prev.filter(f => f.filename !== filename))
+        setFiles(prev => prev.filter(f => f.filename !== deleteDialog.filename))
       } else {
-        toast.error('删除失败')
+        toast.error(data.error || '删除失败')
       }
     } catch {
       toast.error('删除失败')
+    } finally {
+      setDeleteDialog({ open: false, filename: null })
     }
   }
 
@@ -226,6 +244,24 @@ export function AdminFiles() {
           )}
         </CardContent>
       </Card>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除文件 "{deleteDialog.filename}" 吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

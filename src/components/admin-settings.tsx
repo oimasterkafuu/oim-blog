@@ -5,6 +5,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { Save, Sparkles, Info, Download, Upload, Trash2, Database, User, Key, RefreshCw, Image as ImageIcon, Rocket } from 'lucide-react'
 import { useBlog } from './blog-provider'
@@ -12,6 +22,13 @@ import { useBlog } from './blog-provider'
 interface BackupFile {
   filename: string
   url: string
+}
+
+interface ConfirmDialogState {
+  open: boolean
+  title: string
+  description: string
+  onConfirm: () => void
 }
 
 export function AdminSettings() {
@@ -42,6 +59,12 @@ export function AdminSettings() {
   const [restoring, setRestoring] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadingIcon, setUploadingIcon] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {}
+  })
   const fetchingRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const iconInputRef = useRef<HTMLInputElement>(null)
@@ -192,10 +215,15 @@ export function AdminSettings() {
 
   // 从服务器备份恢复
   const handleRestoreFromServer = async (filename: string) => {
-    if (!confirm(`确定要从 ${filename} 恢复数据库吗？当前数据将被覆盖。`)) {
-      return
-    }
+    setConfirmDialog({
+      open: true,
+      title: '恢复数据库',
+      description: `确定要从 ${filename} 恢复数据库吗？当前数据将被覆盖。`,
+      onConfirm: () => doRestoreFromServer(filename)
+    })
+  }
 
+  const doRestoreFromServer = async (filename: string) => {
     setRestoring(true)
     try {
       const res = await fetch('/api/backup/restore', {
@@ -256,9 +284,15 @@ export function AdminSettings() {
 
   // 删除备份
   const handleDeleteBackup = async (filename: string) => {
-    if (!confirm(`确定要删除备份 ${filename} 吗？`)) {
-      return
-    }
+    setConfirmDialog({
+      open: true,
+      title: '删除备份',
+      description: `确定要删除备份 ${filename} 吗？`,
+      onConfirm: () => doDeleteBackup(filename)
+    })
+  }
+
+  const doDeleteBackup = async (filename: string) => {
 
     try {
       const res = await fetch('/api/backup/restore', {
@@ -313,9 +347,15 @@ export function AdminSettings() {
 
   // 删除图标
   const handleIconDelete = async () => {
-    if (!confirm('确定要删除网站图标吗？')) {
-      return
-    }
+    setConfirmDialog({
+      open: true,
+      title: '删除网站图标',
+      description: '确定要删除网站图标吗？',
+      onConfirm: doIconDelete
+    })
+  }
+
+  const doIconDelete = async () => {
 
     try {
       const res = await fetch('/api/icon', { method: 'DELETE' })
@@ -364,10 +404,15 @@ export function AdminSettings() {
 
   // 开始自动更新
   const handleAutoUpdate = async () => {
-    if (!confirm('确定要从 GitHub 拉取最新代码并重新构建吗？更新期间服务可能会暂时不可用。')) {
-      return
-    }
+    setConfirmDialog({
+      open: true,
+      title: '系统更新',
+      description: '确定要从 GitHub 拉取最新代码并重新构建吗？更新期间服务可能会暂时不可用。',
+      onConfirm: doAutoUpdate
+    })
+  }
 
+  const doAutoUpdate = async () => {
     setUpdating(true)
     setUpdateProgress([])
 
@@ -877,6 +922,20 @@ export function AdminSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 确认对话框 */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDialog.onConfirm}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
