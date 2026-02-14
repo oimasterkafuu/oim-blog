@@ -12,7 +12,7 @@ import { db } from '../src/lib/db'
 
 // SHA-256 哈希函数（与项目中的 auth.ts 保持一致）
 function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
+  return createHash('sha256').update(password + 'salt_key_for_blog').digest('hex')
 }
 
 // 创建命令行交互接口
@@ -63,14 +63,14 @@ function questionHidden(prompt: string): Promise<string> {
           // 删除字符
           if (password.length > 0) {
             password = password.slice(0, -1)
-            process.stdout.write('\b \b') // 退格、空格、退格
+            // process.stdout.write('\b \b') // 退格、空格、退格
           }
           break
         default:
           // 普通字符
           if (c.charCodeAt(0) >= 32) {
             password += c
-            process.stdout.write(c) // 显示明文
+            // process.stdout.write(c) // 显示明文
           }
           break
       }
