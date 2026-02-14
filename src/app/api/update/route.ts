@@ -123,24 +123,67 @@ async function performUpdate() {
       // 安装依赖
       await execAsync('bun install', { cwd: projectRoot, timeout: 120000 })
       
+      // 清理构建缓存，这可以解决 Turbopack 缓存导致的构建错误
+      // 包括 "generate is not a function" 等问题
+      await execAsync('rm -rf .next node_modules/.cache node_modules/.prisma node_modules/@prisma/client', { cwd: projectRoot })
+      
+      // 重新安装 Prisma 客户端以确保最新版本
+      await execAsync('bun add @prisma/client', { cwd: projectRoot, timeout: 60000 })
+      
       // 生成 Prisma 客户端
-      await execAsync('bun run db:generate', { cwd: projectRoot })
+      const { stdout: generateStdout, stderr: generateStderr } = await execAsync('bun run db:generate', { cwd: projectRoot })
+      console.log('Prisma generate output:', generateStdout)
+      if (generateStderr) console.error('Prisma generate stderr:', generateStderr)
       
-      // 构建
-      const { stdout, stderr } = await execAsync('bun run build', { 
-        cwd: projectRoot, 
-        timeout: 300000,
-        env: { ...process.env, NODE_ENV: 'production' }
-      })
+      // 构建项目 - 首先尝试 Turbopack（默认）
+      let buildSuccess = false
+      let buildError: string | null = null
       
-      // 检查构建是否成功（Next.js build 成功会有特定输出）
-      if (stderr && stderr.includes('Failed to compile')) {
-        throw new Error(stderr)
+      try {
+        const { stdout, stderr } = await execAsync('bun run build', { 
+          cwd: projectRoot, 
+          timeout: 300000,
+          env: { ...process.env, NODE_ENV: 'production' }
+        })
+        console.log('Build (Turbopack) stdout:', stdout)
+        
+        if (stderr && (stderr.includes('Failed to compile') || stderr.includes('TypeError') || stderr.includes('error:'))) {
+          throw new Error(stderr)
+        }
+        buildSuccess = true
+      } catch (turbopackError) {
+        // Turbopack 失败，清理并回退到 webpack
+        console.log('Turbopack build failed, falling back to webpack:', turbopackError)
+        buildError = turbopackError instanceof Error ? turbopackError.message : String(turbopackError)
+        
+        // 清理失败的构建产物
+        await execAsync('rm -rf .next', { cwd: projectRoot })
+        
+        // 使用 webpack 重新构建
+        setProgress('build', 'running', 'Turbopack 失败，使用 Webpack 重试...')
+        
+        const { stdout: webpackStdout, stderr: webpackStderr } = await execAsync('bunx next build --webpack', { 
+          cwd: projectRoot, 
+          timeout: 300000,
+          env: { ...process.env, NODE_ENV: 'production' }
+        })
+        console.log('Build (Webpack) stdout:', webpackStdout)
+        
+        if (webpackStderr && (webpackStderr.includes('Failed to compile') || webpackStderr.includes('error:'))) {
+          throw new Error(webpackStderr)
+        }
+        buildSuccess = true
+        buildError = null
+      }
+      
+      if (!buildSuccess && buildError) {
+        throw new Error(buildError)
       }
       
       setProgress('build', 'success', '构建完成')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('Build error details:', errorMessage)
       setProgress('build', 'error', `构建失败: ${errorMessage}`)
       isUpdating = false
       return
