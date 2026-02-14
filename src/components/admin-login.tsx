@@ -120,7 +120,6 @@ export function AdminLogin() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="admin"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   required
@@ -131,7 +130,6 @@ export function AdminLogin() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@blog.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
@@ -181,7 +179,6 @@ export function AdminLogin() {
               <Input
                 id="email"
                 type="text"
-                placeholder="用户名或邮箱"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
