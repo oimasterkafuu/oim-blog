@@ -25,7 +25,8 @@ export function AdminSettings() {
     ai_api_url: '',
     ai_model_name: '',
     ai_api_key: '',
-    jwt_secret: ''
+    jwt_secret: '',
+    github_webhook_secret: ''
   })
   const [userForm, setUserForm] = useState({
     newName: '',
@@ -70,7 +71,8 @@ export function AdminSettings() {
           ai_api_url: settingsData.settings.ai_api_url || '',
           ai_model_name: settingsData.settings.ai_model_name || '',
           ai_api_key: settingsData.settings.ai_api_key || '',
-          jwt_secret: settingsData.settings.jwt_secret || ''
+          jwt_secret: settingsData.settings.jwt_secret || '',
+          github_webhook_secret: settingsData.settings.github_webhook_secret || ''
         })
       }
 
@@ -473,6 +475,20 @@ export function AdminSettings() {
               placeholder="留空表示使用系统自动生成的密钥"
             />
             <p className="text-xs text-muted-foreground">修改后会重新签发当前会话的 Token，其他用户需要重新登录</p>
+          </div>
+          <div className="space-y-2">
+            <Label>GitHub Webhook Secret</Label>
+            <Input
+              type="password"
+              value={settings.github_webhook_secret}
+              onChange={e => setSettings({ ...settings, github_webhook_secret: e.target.value })}
+              placeholder="用于验证 GitHub Webhook 的密钥"
+            />
+            <p className="text-xs text-muted-foreground">
+              配置此密钥后，可在 GitHub 仓库设置中设置 Webhook：
+              Payload URL: <code className="bg-muted px-1 rounded">{typeof window !== 'undefined' ? `${window.location.origin}/api/webhook/github` : '/api/webhook/github'}</code>，
+              Content type: <code className="bg-muted px-1 rounded">application/json</code>
+            </p>
           </div>
           <div className="flex justify-end">
             <Button onClick={handleSaveSettings} disabled={saving}>
