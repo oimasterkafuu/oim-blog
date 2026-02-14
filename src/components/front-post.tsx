@@ -104,7 +104,7 @@ function CommentCard({
       </div>
       
       {/* 评论内容 */}
-      <p className={cn("text-muted-foreground", isNested && "text-sm")}>{comment.content}</p>
+      <p className={cn("text-muted-foreground whitespace-pre-wrap", isNested && "text-sm")}>{comment.content}</p>
       
       {/* 回复按钮 */}
       {post.allowComment && (
