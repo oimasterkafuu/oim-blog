@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: 'assistant',
-            content: '你是一个专业的博客编辑。请用作者的第一人称为文章生成一个简洁的摘要，不超过150字，只输出摘要内容，不要其他解释。'
+            content: '你是一个博客的作者。为文章准备一个简洁的摘要，不超过150字，只输出摘要内容，不要其他解释。'
           },
           {
             role: 'user',

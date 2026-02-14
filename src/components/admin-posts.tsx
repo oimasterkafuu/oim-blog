@@ -37,7 +37,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile'
 import { MarkdownRenderer } from '@/components/markdown'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Eye, Search, RotateCcw, ArrowLeft, Save, Sparkles, Loader2, RefreshCw, Edit, Eye as EyeIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Search, RotateCcw, ArrowLeft, Save, Sparkles, Loader2, RefreshCw, Edit, Eye as EyeIcon, MessageSquare } from 'lucide-react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 
@@ -54,6 +54,8 @@ interface Post {
   category: { id: string; name: string } | null
   tags: { tag: { id: string; name: string } }[]
   author: { id: string; name: string }
+  aiCommentLoading?: boolean
+  hasAIComment?: boolean
 }
 
 interface Category {
@@ -759,6 +761,7 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
     post: null,
     permanent: false
   })
+  const [aiCommentStates, setAiCommentStates] = useState<Record<string, { loading: boolean; hasComment: boolean }>>({})
   const fetchingRef = useRef(false)
 
   const loadData = useCallback(async (page: number = 1) => {
@@ -835,6 +838,70 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
       }
     } catch {
       toast.error('操作失败')
+    }
+  }
+
+  // 检查文章是否有 AI 评论
+  const checkAIComment = async (postId: string) => {
+    try {
+      const res = await fetch(`/api/ai/comment?postId=${postId}`)
+      const data = await res.json()
+      setAiCommentStates(prev => ({
+        ...prev,
+        [postId]: { loading: false, hasComment: data.hasAIComment }
+      }))
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  // 生成 AI 评论
+  const handleGenerateAIComment = async (post: Post) => {
+    // 检查是否已有评论或正在加载
+    const state = aiCommentStates[post.id]
+    if (state?.loading || state?.hasComment) return
+
+    // 设置加载状态
+    setAiCommentStates(prev => ({
+      ...prev,
+      [post.id]: { loading: true, hasComment: false }
+    }))
+
+    toast.info('正在生成 AI 评论...')
+
+    try {
+      const res = await fetch('/api/ai/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id })
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        toast.success('AI 评论已生成')
+        setAiCommentStates(prev => ({
+          ...prev,
+          [post.id]: { loading: false, hasComment: true }
+        }))
+      } else if (data.existingComment) {
+        toast.info('该文章已有 AI 评论')
+        setAiCommentStates(prev => ({
+          ...prev,
+          [post.id]: { loading: false, hasComment: true }
+        }))
+      } else {
+        toast.error(data.error || '生成失败')
+        setAiCommentStates(prev => ({
+          ...prev,
+          [post.id]: { loading: false, hasComment: false }
+        }))
+      }
+    } catch {
+      toast.error('生成失败')
+      setAiCommentStates(prev => ({
+        ...prev,
+        [post.id]: { loading: false, hasComment: false }
+      }))
     }
   }
 
@@ -959,6 +1026,19 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
                                 title="编辑"
                               >
                                 <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleGenerateAIComment(post)}
+                                disabled={aiCommentStates[post.id]?.loading || aiCommentStates[post.id]?.hasComment}
+                                title={aiCommentStates[post.id]?.hasComment ? '已有 AI 评论' : '生成 AI 评论'}
+                              >
+                                {aiCommentStates[post.id]?.loading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MessageSquare className={`h-4 w-4 ${aiCommentStates[post.id]?.hasComment ? 'text-green-500' : ''}`} />
+                                )}
                               </Button>
                               <Button
                                 variant="ghost"

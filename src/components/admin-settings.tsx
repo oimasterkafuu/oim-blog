@@ -29,6 +29,19 @@ interface ConfirmDialogState {
   title: string
   description: string
   onConfirm: () => void
+  variant?: 'default' | 'destructive'
+}
+
+interface SchemaWarningState {
+  open: boolean
+  title: string
+  message: string
+  details: {
+    missingTables: string[]
+    sourceTables: string[]
+    targetTables: string[]
+  }
+  onConfirm: () => void
 }
 
 export function AdminSettings() {
@@ -63,6 +76,13 @@ export function AdminSettings() {
     open: false,
     title: '',
     description: '',
+    onConfirm: () => {}
+  })
+  const [schemaWarning, setSchemaWarning] = useState<SchemaWarningState>({
+    open: false,
+    title: '',
+    message: '',
+    details: { missingTables: [], sourceTables: [], targetTables: [] },
     onConfirm: () => {}
   })
   const fetchingRef = useRef(false)
@@ -223,13 +243,18 @@ export function AdminSettings() {
     })
   }
 
-  const doRestoreFromServer = async (filename: string) => {
+  const doRestoreFromServer = async (filename: string, force = false) => {
     setRestoring(true)
     try {
+      const formData = new FormData()
+      formData.append('filename', filename)
+      if (force) {
+        formData.append('force', 'true')
+      }
+
       const res = await fetch('/api/backup/restore', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename })
+        body: formData
       })
       const data = await res.json()
       
@@ -238,6 +263,15 @@ export function AdminSettings() {
         setTimeout(() => {
           window.location.reload()
         }, 1500)
+      } else if (data.canForce) {
+        // 表结构不兼容，显示警告
+        setSchemaWarning({
+          open: true,
+          title: data.error,
+          message: data.message,
+          details: data.details,
+          onConfirm: () => doRestoreFromServer(filename, true)
+        })
       } else {
         toast.error(data.error || '恢复失败')
       }
@@ -257,6 +291,47 @@ export function AdminSettings() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+
+      const res = await fetch('/api/backup/restore', {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      
+      if (data.success) {
+        toast.success(data.message)
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
+      } else if (data.canForce) {
+        // 表结构不兼容，显示警告
+        setSchemaWarning({
+          open: true,
+          title: data.error,
+          message: data.message,
+          details: data.details,
+          onConfirm: () => doUploadRestoreForce(file)
+        })
+      } else {
+        toast.error(data.error || '恢复失败')
+      }
+    } catch {
+      toast.error('恢复失败')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  // 强制上传恢复
+  const doUploadRestoreForce = async (file: File) => {
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('force', 'true')
 
       const res = await fetch('/api/backup/restore', {
         method: 'POST',
@@ -933,6 +1008,37 @@ export function AdminSettings() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDialog.onConfirm}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 表结构不兼容警告对话框 */}
+      <AlertDialog open={schemaWarning.open} onOpenChange={(open) => setSchemaWarning(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{schemaWarning.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {schemaWarning.message}
+              {schemaWarning.details.missingTables.length > 0 && (
+                <div className="mt-2">
+                  <p className="font-medium">缺少的表：</p>
+                  <p className="text-destructive">{schemaWarning.details.missingTables.join(', ')}</p>
+                </div>
+              )}
+              <div className="mt-2">
+                <p className="font-medium">备份文件包含的表：</p>
+                <p>{schemaWarning.details.sourceTables.join(', ') || '无'}</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={schemaWarning.onConfirm}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              强制恢复
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
