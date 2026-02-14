@@ -7,17 +7,8 @@
  */
 
 import { createHash } from 'crypto'
-import Database from 'better-sqlite3'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import readline from 'readline'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const projectRoot = path.resolve(__dirname, '..')
-
-// 数据库路径
-const dbPath = path.join(projectRoot, 'db', 'data.db')
+import { db } from '../src/lib/db'
 
 // SHA-256 哈希函数（与项目中的 auth.ts 保持一致）
 function hashPassword(password: string): string {
@@ -62,23 +53,15 @@ async function main() {
   console.log('=== 紧急重置密码工具 ===\n')
   
   try {
-    // 检查数据库文件是否存在
-    const fs = await import('fs')
-    if (!fs.existsSync(dbPath)) {
-      console.error('错误：数据库文件不存在，请先初始化系统。')
-      console.error(`期望路径: ${dbPath}`)
-      process.exit(1)
-    }
-
-    // 连接数据库
-    const db = new Database(dbPath)
-    
-    // 检查用户表是否存在且非空
-    const users = db.prepare('SELECT id, name, email FROM User').all() as Array<{ id: string; name: string; email: string }>
+    // 使用 Prisma 查询用户
+    const users = await db.user.findMany({
+      select: { id: true, name: true, email: true }
+    })
     
     if (users.length === 0) {
       console.error('错误：用户表为空，请先通过网页初始化系统。')
-      db.close()
+      rl.close()
+      await db.$disconnect()
       process.exit(1)
     }
 
@@ -110,8 +93,8 @@ async function main() {
     
     if (!newPassword || newPassword.length < 4) {
       console.error('错误：密码长度至少为 4 个字符。')
-      db.close()
       rl.close()
+      await db.$disconnect()
       process.exit(1)
     }
 
@@ -120,30 +103,38 @@ async function main() {
     
     if (newPassword !== confirmPassword) {
       console.error('错误：两次输入的密码不一致。')
-      db.close()
       rl.close()
+      await db.$disconnect()
       process.exit(1)
     }
 
-    // 更新密码
+    // 使用 Prisma 更新密码
     const hashedPassword = hashPassword(newPassword)
-    const result = db.prepare('UPDATE User SET password = ? WHERE id = ?').run(hashedPassword, selectedUser.id)
+    await db.user.update({
+      where: { id: selectedUser.id },
+      data: { password: hashedPassword }
+    })
     
-    if (result.changes > 0) {
-      console.log('\n密码重置成功！')
-      console.log(`用户: ${selectedUser.name}`)
-      console.log(`邮箱: ${selectedUser.email}`)
-    } else {
-      console.error('错误：密码更新失败。')
-    }
-
-    db.close()
+    console.log('\n密码重置成功！')
+    console.log(`用户: ${selectedUser.name}`)
+    console.log(`邮箱: ${selectedUser.email}`)
+    
   } catch (error) {
-    console.error('发生错误:', error instanceof Error ? error.message : error)
+    // 检查是否是数据库连接错误
+    if (error instanceof Error && error.message.includes('Can\'t reach database server')) {
+      console.error('错误：无法连接到数据库，请检查数据库文件是否存在。')
+    } else if (error instanceof Error && error.message.includes('does not exist')) {
+      console.error('错误：数据库表不存在，请先初始化系统。')
+    } else {
+      console.error('发生错误:', error instanceof Error ? error.message : error)
+    }
+    rl.close()
+    await db.$disconnect()
     process.exit(1)
   }
 
   rl.close()
+  await db.$disconnect()
 }
 
 main()
