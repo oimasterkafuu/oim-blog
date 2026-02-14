@@ -85,7 +85,11 @@ export async function DELETE(
     }
 
     const { id } = await params
-    await db.tag.delete({ where: { id } })
+    // 先删除关联的 PostTag 记录，再删除标签
+    await db.$transaction([
+      db.postTag.deleteMany({ where: { tagId: id } }),
+      db.tag.delete({ where: { id } })
+    ])
 
     return NextResponse.json({ success: true })
   } catch (error) {

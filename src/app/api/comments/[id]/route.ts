@@ -40,11 +40,29 @@ export async function DELETE(
     }
 
     const { id } = await params
-    await db.comment.delete({ where: { id } })
+    // 递归删除所有回复，然后删除评论本身
+    await deleteCommentWithReplies(id)
 
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Delete comment error:', error)
     return NextResponse.json({ error: '删除评论失败' }, { status: 500 })
   }
+}
+
+// 递归删除评论及其所有回复
+async function deleteCommentWithReplies(commentId: string) {
+  // 获取所有直接回复
+  const replies = await db.comment.findMany({
+    where: { parentId: commentId },
+    select: { id: true }
+  })
+
+  // 递归删除每个回复
+  for (const reply of replies) {
+    await deleteCommentWithReplies(reply.id)
+  }
+
+  // 删除评论本身
+  await db.comment.delete({ where: { id: commentId } })
 }
