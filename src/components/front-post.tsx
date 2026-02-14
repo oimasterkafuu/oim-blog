@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Calendar, Eye, MessageCircle, User, ArrowLeft, Tag, FolderOpen } from 'lucide-react'
+import { Calendar, Eye, MessageCircle, User, ArrowLeft, Tag, FolderOpen, CornerDownLeft, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import { useBlog } from './blog-provider'
@@ -40,7 +40,166 @@ interface Comment {
   authorEmail: string
   authorUrl: string | null
   createdAt: string
+  parentId?: string | null
   replies?: Comment[]
+}
+
+interface CommentCardProps {
+  comment: Comment
+  post: Post
+  user: any
+  commentForm: { authorName: string; authorEmail: string; authorUrl: string; content: string }
+  setCommentForm: React.Dispatch<React.SetStateAction<{ authorName: string; authorEmail: string; authorUrl: string; content: string }>>
+  replyingTo: string | null
+  setReplyingTo: React.Dispatch<React.SetStateAction<string | null>>
+  handleSubmitComment: (e: React.FormEvent, parentId?: string | null) => Promise<void>
+  depth: number
+}
+
+// 评论卡片组件 - 支持嵌套
+function CommentCard({
+  comment,
+  post,
+  user,
+  commentForm,
+  setCommentForm,
+  replyingTo,
+  setReplyingTo,
+  handleSubmitComment,
+  depth
+}: CommentCardProps) {
+  const isNested = depth > 0
+  
+  return (
+    <div className={cn(
+      "rounded-lg",
+      isNested 
+        ? "border bg-muted/30 p-3" 
+        : "border p-4"
+    )}>
+      {/* 作者信息 */}
+      <div className="flex items-center gap-2 mb-2">
+        {comment.authorUrl && comment.authorUrl !== '/' ? (
+          <a
+            href={comment.authorUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium hover:text-primary transition-colors text-sm"
+          >
+            {comment.authorName}
+          </a>
+        ) : comment.authorUrl === '/' ? (
+          <a
+            href="/"
+            className="font-medium hover:text-primary transition-colors text-sm"
+          >
+            {comment.authorName}
+          </a>
+        ) : (
+          <span className="font-medium text-sm">{comment.authorName}</span>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {format(new Date(comment.createdAt), 'PPP', { locale: zhCN })}
+        </span>
+      </div>
+      
+      {/* 评论内容 */}
+      <p className={cn("text-muted-foreground", isNested && "text-sm")}>{comment.content}</p>
+      
+      {/* 回复按钮 */}
+      {post.allowComment && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-1 h-7 px-2 text-xs"
+          onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+        >
+          <CornerDownLeft className="h-3 w-3 mr-1" />
+          回复
+        </Button>
+      )}
+
+      {/* 内联回复表单 */}
+      {replyingTo === comment.id && (
+        <form onSubmit={(e) => handleSubmitComment(e, comment.id)} className="mt-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>回复 {comment.authorName}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0"
+              onClick={() => setReplyingTo(null)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+          {!user && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <Input
+                placeholder="姓名 *"
+                value={commentForm.authorName}
+                onChange={e => setCommentForm({ ...commentForm, authorName: e.target.value })}
+                required
+                className="h-8 text-sm"
+              />
+              <Input
+                placeholder="邮箱 *"
+                type="email"
+                value={commentForm.authorEmail}
+                onChange={e => setCommentForm({ ...commentForm, authorEmail: e.target.value })}
+                required
+                className="h-8 text-sm"
+              />
+              <Input
+                placeholder="网站"
+                type="url"
+                value={commentForm.authorUrl}
+                onChange={e => setCommentForm({ ...commentForm, authorUrl: e.target.value })}
+                className="h-8 text-sm"
+              />
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Textarea
+              rows={2}
+              value={commentForm.content}
+              onChange={e => setCommentForm({ ...commentForm, content: e.target.value })}
+              placeholder="写下你的回复..."
+              required
+              className="flex-1 text-sm"
+            />
+            <Button type="submit" size="sm" className="self-end">发送</Button>
+          </div>
+        </form>
+      )}
+
+      {/* 嵌套回复 */}
+      {comment.replies && comment.replies.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {comment.replies.map(reply => (
+            <CommentCard
+              key={reply.id}
+              comment={reply}
+              post={post}
+              user={user}
+              commentForm={commentForm}
+              setCommentForm={setCommentForm}
+              replyingTo={replyingTo}
+              setReplyingTo={setReplyingTo}
+              handleSubmitComment={handleSubmitComment}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 辅助函数：合并类名
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(' ')
 }
 
 interface FrontPostProps {
@@ -84,6 +243,7 @@ export function FrontPost({ slug }: FrontPostProps) {
   }, [user])
   const [commentPagination, setCommentPagination] = useState({ page: 1, total: 0, totalPages: 0 })
   const [currentCommentPage, setCurrentCommentPage] = useState(1)
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const fetchingRef = useRef(false)
 
   const fetchPost = useCallback(async () => {
@@ -136,7 +296,7 @@ export function FrontPost({ slug }: FrontPostProps) {
     }
   }, [post, fetchComments])
 
-  const handleSubmitComment = async (e: React.FormEvent) => {
+  const handleSubmitComment = async (e: React.FormEvent, parentId?: string | null) => {
     e.preventDefault()
     if (!post) return
 
@@ -151,7 +311,8 @@ export function FrontPost({ slug }: FrontPostProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...commentForm,
-          postId: post.id
+          postId: post.id,
+          parentId: parentId || null
         })
       })
       const data = await res.json()
@@ -164,6 +325,7 @@ export function FrontPost({ slug }: FrontPostProps) {
           localStorage.setItem('comment_author_url', commentForm.authorUrl)
         }
         setCommentForm(prev => ({ ...prev, content: '' }))
+        setReplyingTo(null)
         fetchComments(currentCommentPage)
         fetchPost()
       } else {
@@ -338,72 +500,20 @@ export function FrontPost({ slug }: FrontPostProps) {
             <div className="text-center py-8 text-muted-foreground">暂无评论</div>
           ) : (
             <>
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {comments.map(comment => (
-                  <Card key={comment.id}>
-                    <CardContent>
-                      <div className="flex items-center gap-2 mb-2">
-                        {comment.authorUrl && comment.authorUrl !== '/' ? (
-                          <a
-                            href={comment.authorUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium hover:text-primary transition-colors"
-                          >
-                            {comment.authorName}
-                          </a>
-                        ) : comment.authorUrl === '/' ? (
-                          <a
-                            href="/"
-                            className="font-medium hover:text-primary transition-colors"
-                          >
-                            {comment.authorName}
-                          </a>
-                        ) : (
-                          <span className="font-medium">{comment.authorName}</span>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(comment.createdAt), 'PPP', { locale: zhCN })}
-                        </span>
-                      </div>
-                      <p className="text-muted-foreground">{comment.content}</p>
-
-                      {/* Replies */}
-                      {comment.replies && comment.replies.length > 0 && (
-                        <div className="ml-8 mt-4 space-y-4 border-l-2 pl-4">
-                          {comment.replies.map(reply => (
-                            <div key={reply.id}>
-                              <div className="flex items-center gap-2 mb-1">
-                                {reply.authorUrl && reply.authorUrl !== '/' ? (
-                                  <a
-                                    href={reply.authorUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-medium hover:text-primary transition-colors"
-                                  >
-                                    {reply.authorName}
-                                  </a>
-                                ) : reply.authorUrl === '/' ? (
-                                  <a
-                                    href="/"
-                                    className="font-medium hover:text-primary transition-colors"
-                                  >
-                                    {reply.authorName}
-                                  </a>
-                                ) : (
-                                  <span className="font-medium">{reply.authorName}</span>
-                                )}
-                                <span className="text-xs text-muted-foreground">
-                                  {format(new Date(reply.createdAt), 'PPP', { locale: zhCN })}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground">{reply.content}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  <CommentCard
+                    key={comment.id}
+                    comment={comment}
+                    post={post}
+                    user={user}
+                    commentForm={commentForm}
+                    setCommentForm={setCommentForm}
+                    replyingTo={replyingTo}
+                    setReplyingTo={setReplyingTo}
+                    handleSubmitComment={handleSubmitComment}
+                    depth={0}
+                  />
                 ))}
               </div>
 

@@ -19,8 +19,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Check, Trash2, X, AlertCircle } from 'lucide-react'
+import { Check, Trash2, RefreshCw, CornerDownRight, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 
@@ -32,8 +42,14 @@ interface Comment {
   authorUrl: string | null
   status: string
   createdAt: string
+  parentId: string | null
   post: { id: string; title: string; slug: string }
-  replies?: Comment[]
+  parent?: { 
+    id: string
+    authorName: string
+    content: string
+    status: string
+  } | null
 }
 
 export function AdminComments() {
@@ -42,6 +58,11 @@ export function AdminComments() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 })
   const [currentPage, setCurrentPage] = useState(1)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; comment: Comment | null }>({
+    open: false,
+    comment: null
+  })
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     loadData(1)
@@ -54,6 +75,7 @@ export function AdminComments() {
       if (statusFilter !== 'all') params.set('status', statusFilter)
       params.set('limit', '20')
       params.set('page', String(page))
+      params.set('flat', 'true') // 使用扁平化模式
       
       const res = await fetch(`/api/comments?${params}`)
       const data = await res.json()
@@ -80,28 +102,32 @@ export function AdminComments() {
         toast.success('状态已更新')
         loadData(currentPage)
       } else {
-        toast.error(data.error)
+        toast.error(data.error || '操作失败')
       }
     } catch {
       toast.error('操作失败')
     }
   }
 
-  const handleDelete = async (comment: Comment) => {
-    if (!confirm('确定要删除这条评论吗？')) return
+  const handleDelete = async () => {
+    if (!deleteDialog.comment) return
+    setDeleting(true)
 
     try {
-      const res = await fetch(`/api/comments/${comment.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/comments/${deleteDialog.comment.id}`, { method: 'DELETE' })
       const data = await res.json()
       
       if (data.success) {
-        toast.success('评论已删除')
+        toast.success(data.message || '评论已删除')
         loadData(currentPage)
       } else {
-        toast.error(data.error)
+        toast.error(data.error || '删除失败')
       }
     } catch {
       toast.error('操作失败')
+    } finally {
+      setDeleting(false)
+      setDeleteDialog({ open: false, comment: null })
     }
   }
 
@@ -118,21 +144,32 @@ export function AdminComments() {
     }
   }
 
+  // 检查父评论是否未通过（用于禁用过审按钮）
+  const isParentNotApproved = (comment: Comment) => {
+    return comment.parent && comment.parent.status !== 'approved'
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">评论管理</h2>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="approved">已通过</SelectItem>
-            <SelectItem value="pending">待审核</SelectItem>
-            <SelectItem value="spam">垃圾</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => loadData(currentPage)}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            刷新
+          </Button>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              <SelectItem value="approved">已通过</SelectItem>
+              <SelectItem value="pending">待审核</SelectItem>
+              <SelectItem value="spam">垃圾</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <Card className="py-0">
@@ -146,12 +183,12 @@ export function AdminComments() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>作者</TableHead>
-                    <TableHead>内容</TableHead>
-                    <TableHead>文章</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>时间</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
+                    <TableHead className="w-[180px]">作者</TableHead>
+                    <TableHead className="min-w-[280px]">内容</TableHead>
+                    <TableHead className="w-[150px]">文章</TableHead>
+                    <TableHead className="w-[80px]">状态</TableHead>
+                    <TableHead className="w-[100px]">时间</TableHead>
+                    <TableHead className="w-[140px] text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -160,27 +197,35 @@ export function AdminComments() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{comment.authorName}</p>
-                          <p className="text-xs text-muted-foreground">{comment.authorEmail}</p>
+                          <p className="text-xs text-muted-foreground truncate">{comment.authorEmail}</p>
                           {comment.authorUrl && (
                             <a
                               href={comment.authorUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-primary hover:underline block truncate max-w-[200px]"
+                              className="text-xs text-primary hover:underline block truncate max-w-[160px]"
                             >
                               {comment.authorUrl}
                             </a>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-xs">
+                      <TableCell>
+                        {/* 回复提示 */}
+                        {comment.parent && (
+                          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <CornerDownRight className="h-3 w-3" />
+                            回复 @{comment.parent.authorName}
+                          </div>
+                        )}
+                        {/* 评论内容 */}
                         <p className="truncate">{comment.content}</p>
                       </TableCell>
                       <TableCell>
                         <a
                           href={`/post/${comment.post.slug}`}
                           target="_blank"
-                          className="text-primary hover:underline text-sm"
+                          className="text-primary hover:underline text-sm line-clamp-2"
                         >
                           {comment.post.title}
                         </a>
@@ -198,6 +243,7 @@ export function AdminComments() {
                                 size="icon"
                                 onClick={() => handleUpdateStatus(comment, 'approved')}
                                 title="通过"
+                                disabled={isParentNotApproved(comment)}
                               >
                                 <Check className="h-4 w-4 text-green-500" />
                               </Button>
@@ -217,17 +263,28 @@ export function AdminComments() {
                               size="icon"
                               onClick={() => handleUpdateStatus(comment, 'approved')}
                               title="恢复"
+                              disabled={isParentNotApproved(comment)}
                             >
                               <Check className="h-4 w-4 text-green-500" />
+                            </Button>
+                          )}
+                          {comment.status === 'approved' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleUpdateStatus(comment, 'pending')}
+                              title="取消通过"
+                            >
+                              <AlertCircle className="h-4 w-4 text-yellow-500" />
                             </Button>
                           )}
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(comment)}
+                            onClick={() => setDeleteDialog({ open: true, comment })}
                             title="删除"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
                       </TableCell>
@@ -264,6 +321,32 @@ export function AdminComments() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ open, comment: deleteDialog.comment })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDialog.comment?.parentId ? (
+                '确定要删除这条回复吗？'
+              ) : (
+                '这是一条一级评论，删除后将同时删除其下所有回复。确定要继续吗？'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? '删除中...' : '确认删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

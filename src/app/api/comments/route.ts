@@ -2,6 +2,38 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 
+// 构建评论树结构
+function buildCommentTree(comments: any[]): any[] {
+  const commentMap = new Map<string, any>()
+  const rootComments: any[] = []
+
+  // 先将所有评论放入 Map
+  for (const comment of comments) {
+    commentMap.set(comment.id, { ...comment, replies: [] })
+  }
+
+  // 构建树结构
+  for (const comment of comments) {
+    const node = commentMap.get(comment.id)!
+    if (comment.parentId && commentMap.has(comment.parentId)) {
+      commentMap.get(comment.parentId)!.replies.push(node)
+    } else {
+      rootComments.push(node)
+    }
+  }
+
+  return rootComments
+}
+
+// 计算评论树的总评论数
+function countCommentTree(comment: any): number {
+  let count = 1
+  for (const reply of comment.replies || []) {
+    count += countCommentTree(reply)
+  }
+  return count
+}
+
 // 获取评论列表
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +42,7 @@ export async function GET(request: NextRequest) {
     const postId = searchParams.get('postId')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
-    const skip = (page - 1) * limit
+    const flat = searchParams.get('flat') === 'true' // 扁平化模式（用于后台管理）
 
     const where: any = {}
     
@@ -25,30 +57,115 @@ export async function GET(request: NextRequest) {
       where.postId = postId
     }
 
-    const [comments, total] = await Promise.all([
-      db.comment.findMany({
-        where,
-        include: {
-          post: { select: { id: true, title: true, slug: true } },
-          replies: {
-            where: session ? {} : { status: 'approved' },
-            orderBy: { createdAt: 'asc' }
+    // 后台管理模式：返回扁平化列表
+    if (flat && session) {
+      const skip = (page - 1) * limit
+      
+      const [comments, total] = await Promise.all([
+        db.comment.findMany({
+          where,
+          include: {
+            post: { select: { id: true, title: true, slug: true } },
+            parent: {
+              select: {
+                id: true,
+                authorName: true,
+                content: true,
+                status: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        db.comment.count({ where })
+      ])
+
+      return NextResponse.json({
+        comments,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      })
+    }
+
+    // 前台模式：按评论树聚合分页
+    // 一次性获取所有符合条件的评论
+    const allComments = await db.comment.findMany({
+      where,
+      include: {
+        post: { select: { id: true, title: true, slug: true } },
+        parent: {
+          select: {
+            id: true,
+            authorName: true,
+            content: true
           }
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit
-      }),
-      db.comment.count({ where })
-    ])
+        }
+      },
+      orderBy: { createdAt: 'asc' } // 按时间从早到晚
+    })
+
+    // 构建评论树
+    const rootComments = buildCommentTree(allComments)
+
+    // 按评论树聚合分页
+    const paginatedTrees: any[] = []
+    let currentCount = 0
+    let skippedCount = 0
+    let currentPage = 1
+
+    for (const root of rootComments) {
+      const treeSize = countCommentTree(root)
+      
+      // 如果还在跳过前面的页面
+      if (currentPage < page) {
+        skippedCount += treeSize
+        if (skippedCount >= limit) {
+          currentPage++
+          skippedCount = 0
+        }
+        continue
+      }
+
+      // 当前页：添加评论树
+      paginatedTrees.push(root)
+      currentCount += treeSize
+
+      // 如果已达到限制，停止
+      if (currentCount >= limit) {
+        break
+      }
+    }
+
+    // 计算总评论数
+    const totalComments = allComments.length
+
+    // 计算总页数
+    let totalPages = 1
+    let pageCount = 0
+    for (const root of rootComments) {
+      pageCount += countCommentTree(root)
+      if (pageCount >= limit) {
+        totalPages++
+        pageCount = 0
+      }
+    }
+    if (pageCount === 0 && totalPages > 1) {
+      totalPages--
+    }
 
     return NextResponse.json({
-      comments,
+      comments: paginatedTrees,
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit)
+        total: totalComments,
+        totalPages: Math.max(1, totalPages)
       }
     })
   } catch (error) {
