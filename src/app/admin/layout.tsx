@@ -53,7 +53,7 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen bg-background">
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {sidebarOpen && (
@@ -63,7 +63,7 @@ export default function AdminLayout({
         />
       )}
 
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="lg:pl-64">
         <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-14 items-center px-4 gap-4">
             <Button
@@ -90,7 +90,7 @@ export default function AdminLayout({
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="p-4 md:p-6">{children}</main>
       </div>
     </div>
   )

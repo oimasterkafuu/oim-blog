@@ -14,7 +14,8 @@ import {
   LogOut,
   Pen,
   X,
-  Upload
+  Upload,
+  Globe
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -50,11 +51,11 @@ export function AdminSidebar({ open, onClose }: AdminSidebarProps) {
 
   return (
     <aside className={cn(
-      "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0 flex flex-col",
-      open ? "translate-x-0" : "-translate-x-full"
+      "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col h-screen",
+      open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
     )}>
       <div className="flex flex-col h-full">
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
               <Pen className="h-6 w-6 text-primary" />
@@ -91,7 +92,7 @@ export function AdminSidebar({ open, onClose }: AdminSidebarProps) {
           </nav>
         </ScrollArea>
 
-        <div className="p-4 border-t">
+        <div className="p-4 border-t flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm">
               <p className="font-medium">{user?.name}</p>
@@ -101,6 +102,7 @@ export function AdminSidebar({ open, onClose }: AdminSidebarProps) {
           <div className="flex gap-2">
             <Link href="/" className="flex-1">
               <Button variant="outline" size="sm" className="w-full">
+                <Globe className="h-4 w-4 mr-1" />
                 前台
               </Button>
             </Link>
