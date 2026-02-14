@@ -95,9 +95,9 @@ export function AdminDashboard() {
             <CardTitle>快速操作</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2">
-            <a href="/?admin=posts&action=new" className="text-primary hover:underline">+ 撰写新文章</a>
-            <a href="/?admin=categories" className="text-primary hover:underline">+ 添加新分类</a>
-            <a href="/?admin=tags" className="text-primary hover:underline">+ 添加新标签</a>
+            <a href="/admin/posts?edit=new" className="text-primary hover:underline">+ 撰写新文章</a>
+            <a href="/admin/categories?action=new" className="text-primary hover:underline">+ 添加新分类</a>
+            <a href="/admin/tags?action=new" className="text-primary hover:underline">+ 添加新标签</a>
           </CardContent>
         </Card>
 

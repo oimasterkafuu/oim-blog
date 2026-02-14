@@ -43,6 +43,17 @@ export function AdminTags() {
     loadData()
   }, [])
 
+  // 支持 URL query 参数自动打开新建弹窗
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('action') === 'new') {
+      handleOpenDialog()
+      // 清除 URL 中的 action 参数
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+    }
+  }, [])
+
   const loadData = async () => {
     setLoading(true)
     try {
