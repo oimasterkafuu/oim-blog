@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { checkSlugConflict } from '@/lib/slug'
+import { checkSlugConflict, isValidSlug } from '@/lib/slug'
 
 export async function GET(
   request: NextRequest,
@@ -50,6 +50,11 @@ export async function PUT(
     }
 
     if (slug && slug !== existing.slug) {
+      // 验证 slug 格式
+      const slugValidation = isValidSlug(slug)
+      if (!slugValidation.valid) {
+        return NextResponse.json({ error: slugValidation.error }, { status: 400 })
+      }
       const slugConflict = await checkSlugConflict(slug, db)
       if (slugConflict.conflict && slugConflict.type !== 'category') {
         return NextResponse.json({ error: slugConflict.message }, { status: 400 })

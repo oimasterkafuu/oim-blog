@@ -27,6 +27,35 @@ export const RESERVED_PATHS = [
   'slug'
 ]
 
+// 验证 slug 是否只包含安全的英文字符
+export function isValidSlug(slug: string): { valid: boolean; error?: string } {
+  if (!slug || slug.trim() === '') {
+    return { valid: false, error: '别名不能为空' }
+  }
+
+  // 检查是否包含中文字符
+  if (/[\u4e00-\u9fa5]/.test(slug)) {
+    return { valid: false, error: '别名不能包含中文字符，请使用英文、数字或连字符' }
+  }
+
+  // 检查是否包含需要转译的字符（只允许字母、数字、连字符）
+  if (!/^[a-zA-Z0-9-]+$/.test(slug)) {
+    return { valid: false, error: '别名只能包含英文字母、数字和连字符（-）' }
+  }
+
+  // 检查是否以连字符开头或结尾
+  if (slug.startsWith('-') || slug.endsWith('-')) {
+    return { valid: false, error: '别名不能以连字符开头或结尾' }
+  }
+
+  // 检查连续连字符
+  if (/--/.test(slug)) {
+    return { valid: false, error: '别名不能包含连续的连字符' }
+  }
+
+  return { valid: true }
+}
+
 export function generateSlug(title: string): string {
   const slug = pinyin(title, {
     pattern: 'pinyin',

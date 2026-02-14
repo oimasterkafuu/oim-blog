@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { checkSlugConflict } from '@/lib/slug'
+import { checkSlugConflict, isValidSlug } from '@/lib/slug'
 
 export async function GET() {
   try {
@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
 
     if (!name || !slug) {
       return NextResponse.json({ error: '名称和别名不能为空' }, { status: 400 })
+    }
+
+    // 验证 slug 格式
+    const slugValidation = isValidSlug(slug)
+    if (!slugValidation.valid) {
+      return NextResponse.json({ error: slugValidation.error }, { status: 400 })
     }
 
     const slugConflict = await checkSlugConflict(slug, db)

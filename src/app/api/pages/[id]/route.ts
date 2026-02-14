@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { isValidSlug } from '@/lib/slug'
 
 // 获取单个页面
 export async function GET(
@@ -46,6 +47,11 @@ export async function PUT(
     }
 
     if (slug && slug !== existing.slug) {
+      // 验证 slug 格式
+      const slugValidation = isValidSlug(slug)
+      if (!slugValidation.valid) {
+        return NextResponse.json({ error: slugValidation.error }, { status: 400 })
+      }
       const slugPage = await db.page.findUnique({ where: { slug } })
       if (slugPage) {
         return NextResponse.json({ error: '别名已存在' }, { status: 400 })

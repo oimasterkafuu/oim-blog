@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { generateSlug, checkSlugConflict } from '@/lib/slug'
 
 // 快速创建分类
 export async function POST(request: NextRequest) {
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { name } = await request.json()
-    
+
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: '分类名称不能为空' }, { status: 400 })
     }
@@ -21,31 +22,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '分类名称不能为空' }, { status: 400 })
     }
 
-    // 生成 slug
-    const slug = trimmedName
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9\u4e00-\u9fa5-]/g, '')
+    // 使用 generateSlug 生成拼音别名
+    let slug = generateSlug(trimmedName)
 
-    // 检查是否已存在
-    const existing = await db.category.findFirst({
-      where: {
-        OR: [
-          { name: trimmedName },
-          { slug }
-        ]
-      }
+    // 检查是否已存在同名分类
+    const existingByName = await db.category.findFirst({
+      where: { name: trimmedName }
     })
 
-    if (existing) {
-      return NextResponse.json({ success: true, category: existing, exists: true })
+    if (existingByName) {
+      return NextResponse.json({ success: true, category: existingByName, exists: true })
+    }
+
+    // 检查 slug 冲突，如有冲突则添加后缀
+    const conflict = await checkSlugConflict(slug, db)
+    if (conflict.conflict) {
+      let counter = 1
+      while (true) {
+        const newSlug = `${slug}-${counter}`
+        const c = await checkSlugConflict(newSlug, db)
+        if (!c.conflict) {
+          slug = newSlug
+          break
+        }
+        counter++
+      }
     }
 
     // 创建新分类
     const category = await db.category.create({
       data: {
         name: trimmedName,
-        slug: slug || `cat-${Date.now()}`,
+        slug,
         order: 0
       }
     })

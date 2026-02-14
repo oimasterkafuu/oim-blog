@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { generateSlug, checkSlugConflict } from '@/lib/slug'
+import { generateSlug, checkSlugConflict, isValidSlug } from '@/lib/slug'
 import { triggerAsyncAITasks } from '@/lib/ai-tasks'
 
 export async function GET(
@@ -86,6 +86,11 @@ export async function PUT(
     const isPublishing = oldStatus !== 'published' && newStatus === 'published'
 
     if (slug && slug !== existingPost.slug) {
+      // 验证 slug 格式
+      const slugValidation = isValidSlug(slug)
+      if (!slugValidation.valid) {
+        return NextResponse.json({ error: slugValidation.error }, { status: 400 })
+      }
       const slugConflict = await checkSlugConflict(slug, db, id)
       if (slugConflict.conflict) {
         return NextResponse.json({ error: slugConflict.message }, { status: 400 })
