@@ -32,25 +32,30 @@ async function verifySignature(payload: string, signature: string): Promise<bool
 async function performUpdate(): Promise<void> {
   try {
     const { spawn } = require('child_process')
-    const path = require('path')
+    const { join } = require('path')
+    const { writeFileSync } = require('fs')
 
     // 使用 PATHS.projectRoot 确保在 standalone 模式下也能找到正确的路径
-    const updateScript = path.join(PATHS.projectRoot, 'scripts', 'update.sh')
+    const updateScript = join(PATHS.projectRoot, 'scripts', 'update.sh')
+    const updateFlagPath = join(PATHS.projectRoot, '.updating')
 
     console.log('Starting update script:', updateScript)
     console.log('Project root:', PATHS.projectRoot)
 
-    // 直接执行脚本，让脚本自己处理环境清理
-    // 使用 inherit 让子进程继承 stdio，确保日志能正常写入
-    const child = spawn('bash', [updateScript], {
+    // 标记正在更新
+    writeFileSync(updateFlagPath, new Date().toISOString())
+
+    // 使用 env -i 启动脚本，确保干净的构建环境
+    const child = spawn('env', [
+      '-i',
+      `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin`,
+      `HOME=${process.env.HOME}`,
+      `USER=${process.env.USER}`,
+      updateScript
+    ], {
       detached: true,
-      stdio: 'inherit',
-      cwd: PATHS.projectRoot,
-      env: {
-        ...process.env,
-        PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin',
-        PROJECT_ROOT: PATHS.projectRoot
-      }
+      stdio: 'ignore',
+      cwd: PATHS.projectRoot
     })
 
     child.unref()
@@ -60,7 +65,7 @@ async function performUpdate(): Promise<void> {
     setTimeout(() => {
       console.log('Exiting main process to allow update to complete')
       process.exit(0)
-    }, 2000)
+    }, 1000)
   } catch (error) {
     console.error('Update failed:', error)
     throw error
