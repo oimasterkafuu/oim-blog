@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>服务器更新中</title>
+  <style>
+    :root {
+      --radius: 0.625rem;
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.145 0 0);
+      --primary: oklch(0.205 0 0);
+      --primary-foreground: oklch(0.985 0 0);
+      --muted: oklch(0.97 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --border: oklch(0.922 0 0);
+      --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: oklch(0.145 0 0);
+        --foreground: oklch(0.985 0 0);
+        --card: oklch(0.205 0 0);
+        --card-foreground: oklch(0.985 0 0);
+        --primary: oklch(0.922 0 0);
+        --primary-foreground: oklch(0.205 0 0);
+        --muted: oklch(0.269 0 0);
+        --muted-foreground: oklch(0.708 0 0);
+        --border: oklch(1 0 0 / 10%);
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-sans);
+      background-color: var(--background);
+      color: var(--foreground);
+    }
+
+    .container {
+      text-align: center;
+      padding: 3rem 2rem;
+      max-width: 420px;
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    }
+
+    .icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 1.5rem;
+      color: var(--primary);
+      animation: spin 2s linear infinite;
+    }
+
+    .icon svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.025em;
+    }
+
+    p {
+      font-size: 0.9375rem;
+      color: var(--muted-foreground);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .status {
+      font-size: 0.8125rem;
+      color: var(--muted-foreground);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--primary);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.4;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        <path d="M21 3v5h-5"/>
+      </svg>
+    </div>
+    <h1>服务器更新中</h1>
+    <p>博客正在进行系统更新，请稍候片刻。更新完成后将自动恢复访问。</p>
+    <div class="status">
+      <span class="status-dot"></span>
+      <span id="status-text">正在检测服务器状态...</span>
+    </div>
+  </div>
+  <script>
+    const statusText = document.getElementById('status-text');
+    let retryCount = 0;
+    const maxRetries = 120;
+
+    function checkServer() {
+      fetch(window.location.href, { method: 'HEAD', cache: 'no-store' })
+        .then(response => {
+          if (response.status !== 502) {
+            statusText.textContent = '服务已恢复，正在刷新...';
+            window.location.reload();
+          } else {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              statusText.textContent = '服务器正在更新，请稍候 (' + retryCount + ')';
+              setTimeout(checkServer, 3000);
+            } else {
+              statusText.textContent = '更新时间较长，请手动刷新页面';
+            }
+          }
+        })
+        .catch(() => {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            statusText.textContent = '网络连接中... (' + retryCount + ')';
+            setTimeout(checkServer, 3000);
+          } else {
+            statusText.textContent = '连接超时，请手动刷新页面';
+          }
+        });
+    }
+
+    setTimeout(checkServer, 2000);
+  </script>
+</body>
+</html>
