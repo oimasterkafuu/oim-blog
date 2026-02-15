@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { generateSlug, checkSlugConflict, isValidSlug } from '@/lib/slug'
 import { triggerAsyncAITasks } from '@/lib/ai-tasks'
 import { parseSearchQuery, calculateMatchScore, matchesExcludeTerms } from '@/lib/search'
+import { formatContent } from '@/lib/format'
 
 export async function GET(request: NextRequest) {
   try {
@@ -149,6 +150,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '标题不能为空' }, { status: 400 })
     }
 
+    // 格式化内容
+    const formattedContent = content ? formatContent(content) : ''
+    const formattedExcerpt = excerpt ? formatContent(excerpt) : excerpt
+
     if (!slug) {
       slug = generateSlug(title)
     }
@@ -168,8 +173,8 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         slug,
-        content: content || '',
-        excerpt,
+        content: formattedContent,
+        excerpt: formattedExcerpt,
         coverImage,
         status: status || 'draft',
         allowComment: allowComment !== false,
@@ -191,9 +196,9 @@ export async function POST(request: NextRequest) {
     })
 
     if (status === 'published') {
-      const needExcerpt = !excerpt
+      const needExcerpt = !formattedExcerpt
       const needTags = !tags || tags.length === 0
-      triggerAsyncAITasks(post.id, title, content || '', needExcerpt, needTags)
+      triggerAsyncAITasks(post.id, title, formattedContent, needExcerpt, needTags, true)
     }
 
     return NextResponse.json({ success: true, post })

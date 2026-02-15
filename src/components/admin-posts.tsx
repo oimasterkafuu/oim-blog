@@ -781,6 +781,12 @@ function PostList({ onEdit }: { onEdit: (id?: string) => void }) {
       setPosts(data.posts || [])
       setPagination(data.pagination || { page: 1, total: 0, totalPages: 0 })
       setCurrentPage(page)
+
+      // 批量检查已发布文章的 AI 评论状态
+      const publishedPosts = (data.posts || []).filter((p: Post) => p.status === 'published')
+      for (const post of publishedPosts) {
+        checkAIComment(post.id)
+      }
     } catch (error) {
       console.error(error)
     } finally {

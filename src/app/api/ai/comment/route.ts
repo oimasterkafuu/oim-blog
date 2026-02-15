@@ -89,12 +89,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '文章不存在' }, { status: 404 })
     }
 
-    // 检查是否已有 AI 评论
+    // 获取管理员用户信息
+    const adminUser = await db.user.findFirst({
+      where: { role: 'admin' },
+      select: { id: true, email: true }
+    })
+
+    if (!adminUser) {
+      return NextResponse.json({ error: '找不到管理员用户' }, { status: 500 })
+    }
+
+    // 检查是否已有 AI 评论（管理员邮箱 + 外部链接）
     const existingAIComment = await db.comment.findFirst({
       where: {
         postId,
-        authorEmail: session.email,
-        authorName: { contains: '/' } // AI 模型名称通常包含斜杠
+        authorEmail: adminUser.email,
+        authorUrl: { not: '/', not: null }
       }
     })
 
@@ -141,16 +151,6 @@ export async function POST(request: NextRequest) {
 
     if (!commentContent) {
       return NextResponse.json({ error: 'AI 生成评论失败' }, { status: 500 })
-    }
-
-    // 获取管理员用户信息
-    const adminUser = await db.user.findFirst({
-      where: { role: 'admin' },
-      select: { id: true, email: true }
-    })
-
-    if (!adminUser) {
-      return NextResponse.json({ error: '找不到管理员用户' }, { status: 500 })
     }
 
     // 创建评论
@@ -208,12 +208,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ hasAIComment: false })
     }
 
-    // 检查是否已有 AI 评论（管理员邮箱且包含斜杠的模型名）
+    // 检查是否已有 AI 评论（管理员邮箱 + 外部链接）
     const existingAIComment = await db.comment.findFirst({
       where: {
         postId,
         authorEmail: adminUser.email,
-        authorName: { contains: '/' }
+        authorUrl: { not: '/', not: null }
       }
     })
 

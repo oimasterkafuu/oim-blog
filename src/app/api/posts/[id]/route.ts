@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { generateSlug, checkSlugConflict, isValidSlug } from '@/lib/slug'
 import { triggerAsyncAITasks } from '@/lib/ai-tasks'
+import { formatContent } from '@/lib/format'
 
 export async function GET(
   request: NextRequest,
@@ -85,6 +86,10 @@ export async function PUT(
     const newStatus = status ?? oldStatus
     const isPublishing = oldStatus !== 'published' && newStatus === 'published'
 
+    // 格式化内容
+    const formattedContent = content !== undefined ? (content ? formatContent(content) : '') : existingPost.content
+    const formattedExcerpt = excerpt !== undefined ? (excerpt ? formatContent(excerpt) : excerpt) : existingPost.excerpt
+
     if (slug && slug !== existingPost.slug) {
       // 验证 slug 格式
       const slugValidation = isValidSlug(slug)
@@ -104,7 +109,6 @@ export async function PUT(
     }
 
     const finalTitle = title ?? existingPost.title
-    const finalContent = content ?? existingPost.content
     const finalTags = tags !== undefined ? tags : existingPost.tags.map(t => t.tag.id)
 
     const post = await db.post.update({
@@ -112,8 +116,8 @@ export async function PUT(
       data: {
         title: finalTitle,
         slug: slug ?? existingPost.slug,
-        content: finalContent,
-        excerpt: excerpt ?? existingPost.excerpt,
+        content: formattedContent,
+        excerpt: formattedExcerpt,
         coverImage: coverImage ?? existingPost.coverImage,
         status: newStatus,
         allowComment: allowComment ?? existingPost.allowComment,
@@ -135,11 +139,9 @@ export async function PUT(
     })
 
     if (isPublishing) {
-      const currentExcerpt = excerpt ?? existingPost.excerpt
-      const currentTagIds = finalTags
-      const needExcerpt = !currentExcerpt
-      const needTags = !currentTagIds || currentTagIds.length === 0
-      triggerAsyncAITasks(post.id, finalTitle, finalContent || '', needExcerpt, needTags)
+      const needExcerpt = !formattedExcerpt
+      const needTags = !finalTags || finalTags.length === 0
+      triggerAsyncAITasks(post.id, finalTitle, formattedContent || '', needExcerpt, needTags, true)
     }
 
     return NextResponse.json({ success: true, post })

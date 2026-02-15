@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { formatContent } from '@/lib/format'
 
 // 构建评论树结构
 function buildCommentTree(comments: any[]): any[] {
@@ -195,6 +196,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请填写完整信息' }, { status: 400 })
     }
 
+    // 格式化评论内容
+    const formattedContent = formatContent(content)
+
     // 检查文章是否存在且允许评论
     const post = await db.post.findUnique({
       where: { id: postId },
@@ -212,7 +216,7 @@ export async function POST(request: NextRequest) {
     const session = await getSession()
     const comment = await db.comment.create({
       data: {
-        content,
+        content: formattedContent,
         authorName,
         authorEmail,
         authorUrl,
